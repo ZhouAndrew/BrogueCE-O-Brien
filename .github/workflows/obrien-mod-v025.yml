@@ -1,4 +1,4 @@
-name: "O'Brien Mod v0.2.5"
+name: "O'Brien Mod v0.2.6"
 on:
   push:
     branches: [ master ]
@@ -9,6 +9,7 @@ on:
       - 'apply_obrien_mod_v0_2_3.py'
       - 'apply_obrien_mod_v0_2_4.py'
       - 'apply_obrien_mod_v0_2_5.py'
+      - 'apply_obrien_mod_v0_2_6.py'
       - '.github/workflows/obrien-mod-v025.yml'
   workflow_dispatch:
 
@@ -22,13 +23,15 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y libsdl2-dev libsdl2-image-dev
-      - name: Apply O'Brien v0.2.5
-        run: python3 apply_obrien_mod_v0_2_5.py
-      - name: Verify v0.2.5 markers
+      - name: Apply O'Brien v0.2.6
+        run: python3 apply_obrien_mod_v0_2_6.py
+      - name: Verify v0.2.6 markers
         run: |
-          grep -q 'recognize item types, not hidden magic' src/brogue/RogueMain.c
+          grep -q 'Full tricorder identification: type, enchantment, runic and curse state' src/brogue/Items.c
           grep -q 'identifyItemKind(theItem);' src/brogue/Items.c
-          ! grep -q 'Always-on tricorder scan' src/brogue/Items.c
+          grep -q 'STAFF_POISON, 1, 20' src/brogue/RogueMain.c
+          grep -q 'Bashir carries a finite poison staff' src/brogue/RogueMain.c
+          grep -q 'bashir->carriedItem->charges = 20' src/brogue/RogueMain.c
           grep -q 'STAFF_BLINKING, 1, 10' src/brogue/RogueMain.c
           grep -q 'STAFF_LIGHTNING, 1, 20' src/brogue/RogueMain.c
           grep -q 'STAFF_FIRE, 1, 20' src/brogue/RogueMain.c
