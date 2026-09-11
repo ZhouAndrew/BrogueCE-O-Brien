@@ -1,0 +1,35 @@
+name: "O'Brien Mod v0.2.4"
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'apply_obrien_mod.py'
+      - 'apply_obrien_mod_v0_2_1.py'
+      - 'apply_obrien_mod_v0_2_2.py'
+      - 'apply_obrien_mod_v0_2_3.py'
+      - 'apply_obrien_mod_v0_2_4.py'
+      - '.github/workflows/obrien-mod-v024.yml'
+  workflow_dispatch:
+
+jobs:
+  linux-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev
+      - name: Apply O'Brien v0.2.4
+        run: |
+          python3 apply_obrien_mod_v0_2_4.py
+          python3 apply_obrien_mod_v0_2_4.py
+      - name: Verify v0.2.4 markers
+        run: |
+          grep -q 'gameVariant != VARIANT_OBRIEN_MUST_SURVIVE' src/brogue/Time.c
+          grep -q "bashir->info.displayChar = '&';" src/brogue/RogueMain.c
+          grep -q 'STAFF_FIRE' src/brogue/RogueMain.c
+          grep -q 'identify(theItem);' src/brogue/Items.c
+      - name: Compile
+        run: make -B -j3 bin/brogue
