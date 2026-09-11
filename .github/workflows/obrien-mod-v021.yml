@@ -24,8 +24,9 @@ jobs:
           python3 apply_obrien_mod_v0_2_1.py
       - name: Verify medic patch markers
         run: |
-          grep -q 'Doctor Bashir is a field medic' src/brogue/Monsters.c
-          grep -q 'MONST_FLEES_NEAR_DEATH' src/brogue/RogueMain.c
-          grep -q 'bashir->info.accuracy = 75' src/brogue/RogueMain.c
+          grep -q 'Doctor Bashir is a field medic with finite health' src/brogue/Monsters.c
+          grep -q 'distanceBetween(attacker->loc, defender->loc) > 1' src/brogue/Monsters.c
+          grep -q 'bashir->info.accuracy = 100' src/brogue/RogueMain.c
+          grep -q 'bashir->info.maxHP = 36' src/brogue/RogueMain.c
       - name: Compile
         run: make -B -j3 bin/brogue
