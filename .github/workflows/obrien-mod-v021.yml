@@ -1,0 +1,31 @@
+name: "O'Brien Mod v0.2.1"
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'apply_obrien_mod.py'
+      - 'apply_obrien_mod_v0_2_1.py'
+      - '.github/workflows/obrien-mod-v021.yml'
+  workflow_dispatch:
+
+jobs:
+  linux-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev
+      - name: Apply O'Brien v0.2.1
+        run: |
+          python3 apply_obrien_mod_v0_2_1.py
+          python3 apply_obrien_mod_v0_2_1.py
+      - name: Verify medic patch markers
+        run: |
+          grep -q 'Doctor Bashir is a field medic' src/brogue/Monsters.c
+          grep -q 'MONST_FLEES_NEAR_DEATH' src/brogue/RogueMain.c
+          grep -q 'bashir->info.accuracy = 75' src/brogue/RogueMain.c
+      - name: Compile
+        run: make -B -j3 bin/brogue
