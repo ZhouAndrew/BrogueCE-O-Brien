@@ -1,0 +1,35 @@
+name: "O'Brien Mod v0.2.2"
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'apply_obrien_mod.py'
+      - 'apply_obrien_mod_v0_2_1.py'
+      - 'apply_obrien_mod_v0_2_2.py'
+      - '.github/workflows/obrien-mod-v022.yml'
+  workflow_dispatch:
+
+jobs:
+  linux-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev
+      - name: Apply O'Brien v0.2.2
+        run: |
+          python3 apply_obrien_mod_v0_2_2.py
+          python3 apply_obrien_mod_v0_2_2.py
+      - name: Verify Bashir role
+        run: |
+          grep -q 'Bashir has no personal shield or haste ability' src/brogue/RogueMain.c
+          grep -q 'Doctor Bashir is a field medic with finite health' src/brogue/Monsters.c
+          grep -q 'distanceBetween(attacker->loc, defender->loc) > 1' src/brogue/Monsters.c
+          grep -q 'bashir->info.bolts\[0\] = BOLT_HEALING' src/brogue/RogueMain.c
+          grep -q 'bashir->info.bolts\[1\] = 0' src/brogue/RogueMain.c
+          grep -q 'bashir->info.bolts\[2\] = 0' src/brogue/RogueMain.c
+      - name: Compile
+        run: make -B -j3 bin/brogue
