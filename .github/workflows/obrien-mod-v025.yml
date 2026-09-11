@@ -23,9 +23,7 @@ jobs:
           sudo apt update -y
           sudo apt install -y libsdl2-dev libsdl2-image-dev
       - name: Apply O'Brien v0.2.5
-        run: |
-          python3 apply_obrien_mod_v0_2_5.py
-          python3 apply_obrien_mod_v0_2_5.py
+        run: python3 apply_obrien_mod_v0_2_5.py
       - name: Verify v0.2.5 markers
         run: |
           grep -q 'Permanent Starfleet field analysis' src/brogue/RogueMain.c
