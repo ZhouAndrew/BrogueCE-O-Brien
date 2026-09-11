@@ -1,0 +1,43 @@
+name: "O'Brien Mod"
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'apply_obrien_mod.py'
+      - 'src/**'
+      - '.github/workflows/obrien-mod.yml'
+  pull_request:
+    branches: [master]
+    paths:
+      - 'apply_obrien_mod.py'
+      - 'src/**'
+      - '.github/workflows/obrien-mod.yml'
+
+jobs:
+  linux-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libsdl2-dev libsdl2-image-dev
+
+      - name: Apply O'Brien v0.2 patch
+        run: |
+          python3 apply_obrien_mod.py
+          python3 apply_obrien_mod.py
+
+      - name: Verify fourth variant and supply rules
+        run: |
+          grep -q 'VARIANT_OBRIEN_MUST_SURVIVE' src/brogue/Rogue.h
+          grep -q "O'Brien Must Survive" src/brogue/MainMenu.c
+          grep -q 'OBRIEN_SUPPLY_INTERVAL' src/brogue/RogueMain.c
+          grep -q 'max(0, MAX_PACK_ITEMS - numberOfItemsInPack())' src/brogue/Items.c
+          ! grep -q 'OBRIEN_BROGUE' src/brogue/RogueMain.c
+
+      - name: Compile patched game
+        run: make -B -j3 bin/brogue
