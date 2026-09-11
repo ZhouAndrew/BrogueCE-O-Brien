@@ -26,9 +26,9 @@ jobs:
         run: python3 apply_obrien_mod_v0_2_5.py
       - name: Verify v0.2.5 markers
         run: |
-          grep -q 'Permanent Starfleet field analysis' src/brogue/RogueMain.c
+          grep -q 'recognize item types, not hidden magic' src/brogue/RogueMain.c
           grep -q 'identifyItemKind(theItem);' src/brogue/Items.c
-          grep -q 'Always-on tricorder scan' src/brogue/Items.c
+          ! grep -q 'Always-on tricorder scan' src/brogue/Items.c
           grep -q 'STAFF_BLINKING, 1, 10' src/brogue/RogueMain.c
           grep -q 'STAFF_LIGHTNING, 1, 20' src/brogue/RogueMain.c
           grep -q 'STAFF_FIRE, 1, 20' src/brogue/RogueMain.c
