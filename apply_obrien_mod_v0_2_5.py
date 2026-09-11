@@ -3,7 +3,7 @@
 
 v0.2.5 includes v0.2.4 and finishes the field-kit behavior discussed for the
 O'Brien variant:
-- permanent Starfleet/tricorder identification instead of Brogue mystery labels;
+- permanent Starfleet/tricorder recognition of item *types* (not full magical stats);
 - stairhead caches reliably deploy on first visit to designated supply depths;
 - firebolt and lightning staffs start at 20/20;
 - blinking staff starts at 10/10 and is capped to a 20-space blink range;
@@ -37,32 +37,27 @@ def replace_once(rel, old, new, marker=None):
     raise SystemExit(f"Cannot patch {rel}: expected v0.2.4 source was not found.")
 
 
-# Permanent field analysis: O'Brien's tricorder knows the randomized item-kind
-# mappings from the beginning of the run. This removes nonsense potion colors and
-# scroll titles from the O'Brien variant while leaving the other variants alone.
+# Permanent field analysis means O'Brien can tell WHAT an object is. It does not
+# grant omniscient knowledge of hidden enchantments, runics or curses on ordinary
+# dungeon equipment. Randomized potion/scroll/staff/wand/ring kinds are therefore
+# known from the beginning, while Brogue's deeper per-object identification rules
+# remain relevant.
 replace_once(
     "src/brogue/RogueMain.c",
     """    shuffleFlavors();\n\n    for (i = 0; i < gameConst->numberFeats; i++) {""",
-    """    shuffleFlavors();\n\n    if (obrienVariantActive()) {\n        // Permanent Starfleet field analysis: identify all randomized item kinds.\n        for (i = 0; i < gameConst->numberPotionKinds; i++) {\n            potionTable[i].identified = true;\n        }\n        for (i = 0; i < gameConst->numberScrollKinds; i++) {\n            scrollTable[i].identified = true;\n        }\n        for (i = 0; i < NUMBER_STAFF_KINDS; i++) {\n            staffTable[i].identified = true;\n        }\n        for (i = 0; i < gameConst->numberWandKinds; i++) {\n            wandTable[i].identified = true;\n        }\n        for (i = 0; i < NUMBER_RING_KINDS; i++) {\n            ringTable[i].identified = true;\n        }\n    }\n\n    for (i = 0; i < gameConst->numberFeats; i++) {""",
-    "Permanent Starfleet field analysis",
+    """    shuffleFlavors();\n\n    if (obrienVariantActive()) {\n        // Permanent Starfleet field analysis: recognize item types, not hidden magic.\n        for (i = 0; i < gameConst->numberPotionKinds; i++) {\n            potionTable[i].identified = true;\n        }\n        for (i = 0; i < gameConst->numberScrollKinds; i++) {\n            scrollTable[i].identified = true;\n        }\n        for (i = 0; i < NUMBER_STAFF_KINDS; i++) {\n            staffTable[i].identified = true;\n        }\n        for (i = 0; i < gameConst->numberWandKinds; i++) {\n            wandTable[i].identified = true;\n        }\n        for (i = 0; i < NUMBER_RING_KINDS; i++) {\n            ringTable[i].identified = true;\n        }\n    }\n\n    for (i = 0; i < gameConst->numberFeats; i++) {""",
+    "recognize item types, not hidden magic",
 )
 
-# The v0.2.3 pickup hook identified only the individual object. Potion/scroll
-# names are controlled by the item-kind table, so explicitly identify the kind too.
+# v0.2.3 used identify(), which fully identified the individual object but did not
+# reliably reveal randomized potion/scroll names. Replace that with kind recognition.
+# This fixes the nonsense labels without automatically exposing enchant/runic/curse
+# details on ordinary dungeon gear.
 replace_once(
     "src/brogue/Items.c",
     """        if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {\n            identify(theItem);\n        }\n\n        theItem = addItemToPack(theItem);\n\n        if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {\n            identify(theItem);\n        }""",
-    """        if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {\n            identifyItemKind(theItem);\n            identify(theItem);\n        }\n\n        theItem = addItemToPack(theItem);\n\n        if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {\n            identifyItemKind(theItem);\n            identify(theItem);\n        }""",
+    """        if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {\n            identifyItemKind(theItem);\n        }\n\n        theItem = addItemToPack(theItem);\n\n        if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {\n            identifyItemKind(theItem);\n        }""",
     "identifyItemKind(theItem);",
-)
-
-# Examining a floor item is also a tricorder scan. This means equipment-specific
-# details become known without first stuffing the object into the pack.
-replace_once(
-    "src/brogue/Items.c",
-    """    singular = (theItem->quantity == 1 ? true : false);\n    carried = itemIsCarried(theItem);\n\n    // Name\n    itemName(theItem, theName, true, true, NULL);""",
-    """    singular = (theItem->quantity == 1 ? true : false);\n    carried = itemIsCarried(theItem);\n\n    if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {\n        // Always-on tricorder scan: looking at an item fully identifies it.\n        identifyItemKind(theItem);\n        identify(theItem);\n    }\n\n    // Name\n    itemName(theItem, theName, true, true, NULL);""",
-    "Always-on tricorder scan",
 )
 
 # Do not make stairhead logistics depend on the precise way the first visit was
@@ -106,7 +101,7 @@ replace_once(
 )
 
 print("O'Brien Must Survive v0.2.5 applied.")
-print("- Permanent field identification/tricorder analysis enabled")
+print("- Permanent field analysis recognizes item types without revealing hidden magic")
 print("- Stairhead cache deploys on first visit to supply depths regardless of entry method")
 print("- Firebolt: 20/20")
 print("- Lightning: 20/20")
