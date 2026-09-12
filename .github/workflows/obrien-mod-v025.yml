@@ -1,4 +1,4 @@
-name: "O'Brien Mod v0.2.10"
+name: "O'Brien Mod v0.2.11"
 on:
   push:
     branches: [ master ]
@@ -14,6 +14,7 @@ on:
       - 'apply_obrien_mod_v0_2_8.py'
       - 'apply_obrien_mod_v0_2_9.py'
       - 'apply_obrien_mod_v0_2_10.py'
+      - 'apply_obrien_mod_v0_2_11.py'
       - '.github/workflows/obrien-mod-v025.yml'
   workflow_dispatch:
 
@@ -27,31 +28,35 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y libsdl2-dev libsdl2-image-dev
-      - name: Apply O'Brien v0.2.10
-        run: python3 apply_obrien_mod_v0_2_10.py
-      - name: Verify v0.2.10 markers
+      - name: Apply O'Brien v0.2.11
+        run: python3 apply_obrien_mod_v0_2_11.py
+      - name: Verify v0.2.11 markers
         run: |
           grep -q 'Full tricorder identification: type, enchantment, runic and curse state' src/brogue/Items.c
-          grep -q 'identifyItemKind(theItem);' src/brogue/Items.c
-          grep -q 'STAFF_POISON, 1, 20' src/brogue/RogueMain.c
           grep -q 'Bashir carries a finite poison staff' src/brogue/RogueMain.c
-          grep -q 'bashir->carriedItem->charges = 20' src/brogue/RogueMain.c
-          grep -q 'STAFF_BLINKING, 1, 10' src/brogue/RogueMain.c
-          grep -q 'STAFF_LIGHTNING, 1, 20' src/brogue/RogueMain.c
-          grep -q 'STAFF_FIRE, 1, 20' src/brogue/RogueMain.c
           grep -q 'return min(20, distance);' src/brogue/PowerTables.c
-          grep -q 'MONST_MALE | MONST_MAINTAINS_DISTANCE | MONST_FLIES' src/brogue/RogueMain.c
-          grep -q 'obrienFirstVisitToDepth(rogue.depthLevel, rogue.upLoc)' src/brogue/RogueMain.c
           grep -q 'v0.2.9 AoE gas resupply' src/brogue/RogueMain.c
           grep -q 'POTION_POISON, 2, 0' src/brogue/RogueMain.c
           grep -q 'POTION_PARALYSIS, 2, 0' src/brogue/RogueMain.c
           grep -q 'POTION_CONFUSION, 2, 0' src/brogue/RogueMain.c
-          grep -q 'v0.2.10 native Recharging charms' src/brogue/RogueMain.c
-          test "$(grep -c 'obrienPlaceSupplyItem(CHARM, CHARM_RECHARGING, 1, 12, anchor);' src/brogue/RogueMain.c)" -eq 3
+          grep -q 'v0.2.11 mission-ready start' src/brogue/RogueMain.c
+          grep -q 'obrienLoadStartingPack();' src/brogue/RogueMain.c
+          grep -q 'obrienAddMissionItemToPack(STAFF, STAFF_FIRE, 20);' src/brogue/RogueMain.c
+          grep -q 'obrienAddMissionItemToPack(STAFF, STAFF_LIGHTNING, 20);' src/brogue/RogueMain.c
+          grep -q 'obrienAddMissionItemToPack(STAFF, STAFF_POISON, 20);' src/brogue/RogueMain.c
+          grep -q 'obrienAddMissionItemToPack(STAFF, STAFF_BLINKING, 10);' src/brogue/RogueMain.c
+          test "$(grep -c 'obrienAddMissionItemToPack(CHARM, CHARM_RECHARGING, 12);' src/brogue/RogueMain.c)" -eq 3
+          ! grep -q 'obrienPlaceSupplyItem(STAFF, STAFF_BLINKING, 1, 10, anchor);' src/brogue/RogueMain.c
+          ! grep -q 'obrienPlaceSupplyItem(STAFF, STAFF_LIGHTNING, 1, 20, anchor);' src/brogue/RogueMain.c
+          ! grep -q 'obrienPlaceSupplyItem(STAFF, STAFF_FIRE, 1, 20, anchor);' src/brogue/RogueMain.c
+          ! grep -q 'obrienPlaceSupplyItem(STAFF, STAFF_POISON, 1, 20, anchor);' src/brogue/RogueMain.c
+          ! grep -q 'obrienPlaceSupplyItem(CHARM, CHARM_RECHARGING, 1, 12, anchor);' src/brogue/RogueMain.c
+          ! grep -q 'obrienPlaceSupplyItem(POTION, POTION_FIRE_IMMUNITY, 1, 0, anchor);' src/brogue/RogueMain.c
+          ! grep -q 'obrienPlaceSupplyItem(POTION, POTION_INVISIBILITY, 1, 0, anchor);' src/brogue/RogueMain.c
+          ! grep -q 'obrienPlaceSupplyItem(POTION, POTION_HASTE_SELF, 1, 0, anchor);' src/brogue/RogueMain.c
           grep -q 'case CHARM_RECHARGING:' src/brogue/Items.c
           grep -q 'rechargeItems(STAFF);' src/brogue/Items.c
           ! grep -q 'OBRIEN_RECHARGE_KEY' src/brogue/Rogue.h
           ! grep -q 'obrienRechargeCombatStaffs' src/brogue/Items.c
-          ! grep -q 'Recharge combat staffs' src/brogue/IO.c
       - name: Compile
         run: make -B -j3 bin/brogue
