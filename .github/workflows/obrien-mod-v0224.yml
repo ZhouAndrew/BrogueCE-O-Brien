@@ -1,0 +1,37 @@
+name: "O'Brien Mod v0.2.24"
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'apply_obrien_mod*.py'
+      - '.github/workflows/obrien-mod-v0224.yml'
+      - 'OBRIEN_MOD.md'
+  workflow_dispatch:
+
+jobs:
+  linux-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev
+      - name: Apply O'Brien v0.2.24
+        run: python3 apply_obrien_mod_v0_2_24.py
+      - name: Verify v0.2.24 security and medical markers
+        run: |
+          grep -q 'v0.2.24 Call Security / away-team emergency runtime' src/brogue/Monsters.c
+          grep -q 'Holographic Security Officer' src/brogue/Monsters.c
+          grep -q 'OBRIEN_SECURITY_MAX_CHARGES 20' src/brogue/Monsters.c
+          grep -q 'security->info.bolts\[0\] = BOLT_LIGHTNING' src/brogue/Monsters.c
+          grep -q 'security->info.bolts\[1\] = BOLT_POISON' src/brogue/Monsters.c
+          grep -q 'security->info.abilityFlags = MA_REFLECT_100' src/brogue/Monsters.c
+          grep -q 'security->info.turnsBetweenRegen = 2' src/brogue/Monsters.c
+          grep -q 'obrienBeginBashirRecovery' src/brogue/Monsters.c
+          grep -q 'Call Security spell' src/brogue/IO.c
+          grep -q 'obrienInterceptCrewDeath' src/brogue/Combat.c
+          grep -q "O'Brien Must Survive v0.2.24" src/brogue/RogueMain.c
+      - name: Compile
+        run: make -B -j3 bin/brogue
