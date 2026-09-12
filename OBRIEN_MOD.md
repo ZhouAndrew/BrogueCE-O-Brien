@@ -1,8 +1,8 @@
-# O'Brien Must Survive v0.2.11
+# O'Brien Must Survive v0.2.12
 
 This repository includes a chained updater for **Brogue CE 1.15.1**. Apply the newest updater to a clean source tree; it runs all earlier O'Brien patches in order.
 
-## v0.2.11 design
+## v0.2.12 design
 
 - **O'Brien Must Survive is a fourth Variant**, alongside Brogue, Rapid Brogue and Bullet Brogue.
 - **Normal / Easy / Wizard remain Modes** and are independent of the selected Variant.
@@ -13,7 +13,7 @@ This repository includes a chained updater for **Brogue CE 1.15.1**. Apply the n
 
 ## Mission-ready starting pack
 
-O'Brien now begins with the fixed Starfleet mission kit **already in his backpack**:
+O'Brien begins with the fixed Starfleet mission kit **already in his backpack**:
 
 - Fire staff: `20/20`
 - Lightning staff: `20/20`
@@ -29,7 +29,9 @@ The standard mission kit is no longer scattered around the first stairwell.
 
 Auxiliary supplies still materialize near designated stairwells. They remain physical floor items, so normal Brogue inventory choices still matter.
 
-- The initial stairhead cache keeps optional survival/engineering equipment rather than duplicating the fixed mission kit.
+- The initial stairhead cache keeps optional survival/engineering equipment, including the Tunneling staff, rather than duplicating the fixed mission kit.
+- The full 3x3 area centered on the stair anchor is reserved as an item-free exit zone for O'Brien's DS9 cache. The player is not forced to step across supplied equipment just to leave the stairhead.
+- If a particular supply item cannot be placed outside that clear zone, it is omitted rather than violating the clear-lane rule.
 - Fire Immunity, Invisibility and Haste are no longer fixed DS9 cache supplies. They can still appear through normal Brogue random generation.
 - Periodic resupply occurs every 5 depths.
 - Each periodic cache includes finite battlefield-control gas: 2 poison gas, 2 paralysis gas and 2 confusion gas potions.
@@ -48,7 +50,7 @@ Start from a clean checkout and run:
 cd ~/Desktop/BrogueCE-O-Brien-src
 git fetch origin
 git reset --hard origin/master
-python3 apply_obrien_mod_v0_2_11.py
+python3 apply_obrien_mod_v0_2_12.py
 make -B
 ./bin/brogue
 ```
