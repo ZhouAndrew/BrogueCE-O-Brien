@@ -1,16 +1,52 @@
-# O'Brien Must Survive v0.2.23
+# O'Brien Must Survive v0.2.24
 
 This repository includes a chained updater for **Brogue CE 1.15.1**. Apply the newest updater to a clean source tree; it runs all earlier O'Brien patches in order.
 
-## v0.2.23 design
+## v0.2.24 design
 
 - **O'Brien Must Survive is a fourth Variant**, alongside Brogue, Rapid Brogue and Bullet Brogue.
 - **Normal / Easy / Wizard remain Modes** and are independent of the selected Variant.
-- O'Brien keeps normal Brogue fragility: the mod improves equipment, information, mobility and logistics rather than turning him into a tank.
+- O'Brien keeps normal Brogue fragility: the mod improves equipment, information, mobility, logistics and away-team support rather than turning him into a tank.
 - Full tricorder analysis identifies item type, enchantment, runic state and curse state in the O'Brien variant.
-- Bashir is a finite-HP defensive medic, follows O'Brien, has permanent flight/levitation, and carries a finite 20-shot poison staff. He has no innate poison bolt, shield or haste ability.
-- **Bashir is permanent Starfleet crew.** Friendly fire can still injure him, but it never causes `unAlly()` defection. v0.2.22 also repairs older saves where friendly fire already stripped his ally/follower identity.
-- **v0.2.23 fixes cramped stairhead resupply loss.** The protected 3x3 stairhead lane is temporarily reserved before Brogue searches for each cache-item location, so the placement helper searches outward instead of repeatedly proposing forbidden near-stair squares and silently deleting supplies.
+- **v0.2.23** fixed cramped stairhead resupply loss while preserving the protected 3x3 stairhead lane.
+- **v0.2.24** adds a real O'Brien-variant command/spell, `Call Security`, plus emergency medical transport for Bashir.
+
+## Call Security spell
+
+Press **`C`** in O'Brien Must Survive, or choose **Call Security spell** from the action menu.
+
+`Call Security` is an intrinsic away-team ability, not an inventory charm or staff, so it consumes no backpack slot. It consumes one player turn when a new security hologram is successfully deployed. Only **one** Holographic Security Officer can be active at a time; attempting to call another while one is already active does not consume a turn.
+
+The deployed **Holographic Security Officer (HSO)** is designed as a mobile rear-guard/bodyguard rather than a replacement player character:
+
+- permanent **Flying** / levitation behavior;
+- **180 Integrity (HP)** and defense 80;
+- very fast autonomous self-repair: roughly **1 Integrity per 2 turns** while able to regenerate;
+- strong close-protection sword profile: **8-14 melee damage**, high accuracy;
+- **Lightning emitter: 20/20** finite tactical charges;
+- **Poison emitter: 20/20** finite tactical charges;
+- both emitter magazines recharge at **1 charge per 35 turns**, a Wisdom-equivalent fast recharge layer;
+- the two emitter systems are treated as enchanted/+3-equivalent tactical staffs, but they are internal holographic systems rather than lootable pack items;
+- **100% bolt reflection** (`MA_REFLECT_100`) provides the anti-magic protection layer without making the HSO physically invulnerable;
+- fire, webs and deep-water penalties are ignored, and the inanimate hologram does not depend on biological breathing/food/medical support;
+- the HSO is permanent Starfleet crew: friendly fire cannot trigger `unAlly()` defection.
+
+The HSO uses normal Brogue ally AI after deployment. That is intentional: while enemies are present it can intercept, fight and absorb damage; when the fight ends it resumes following O'Brien instead of remaining behind as a disposable stationary summon. In practice this gives the intended **rear guard -> win/escape -> regroup** behavior.
+
+If the hologram is destroyed, it is simply a lost projection, not a dead Starfleet officer; a later `Call Security` can deploy a fresh HSO.
+
+## Bashir: emergency medical beam-out and return
+
+Bashir remains a finite-HP medic and can still be hurt by Lightning, fire and other friendly-fire effects. Friendly fire never makes him defect.
+
+Beginning in v0.2.24, Bashir also has an emergency medical transport rule:
+
+- at **25% HP or below**, his next monster-state update triggers emergency beam-out;
+- if a single hit would kill him before that threshold logic runs, the lethal death is intercepted and converted into the same medical beam-out;
+- the beam-out is an administrative disappearance, so it does not leave a corpse or normal death/drop effects;
+- after **120 turns** of recovery, Bashir rematerializes beside the away team using the same canonical Bashir constructor as the initial mission spawn.
+
+This means an accidental O'Brien Lightning hit can still be tactically disastrous -- the team may lose its medic for 120 turns -- but it no longer permanently deletes Bashir from the mission.
 
 ## Mission-ready starting pack
 
@@ -57,17 +93,13 @@ Power Cells passively recover only **1 charge-unit per 100 turns**, so a complet
 
 The energy model is therefore layered:
 
-- Fire / Lightning / Poison: native +3 staffs with separate 20-shot batteries.
+- O'Brien Fire / Lightning / Poison: native +3 staffs with separate 20-shot batteries.
+- Bashir Poison: same finite mission-staff model.
+- HSO Lightning / Poison: internal 20-shot tactical emitter magazines with fast 35-turn recharge.
 - Other staffs: ordinary Brogue capacity/enchantment behavior unless explicitly defined otherwise.
 - Power Cells: immediate finite 20-unit reserves with very slow trickle recovery.
 - Recharging charm: slow-cycling full-system emergency reset.
 - Scrolls of Recharging: rare one-use external resets from normal dungeon generation.
-
-## Bashir: permanent crew
-
-Bashir remains vulnerable. Lightning, fire and other friendly-fire effects may still damage him normally. v0.2.22 changes only the loyalty transition: an accidental hit is not treated as a decision to leave Starfleet.
-
-Vanilla Brogue allies retain their normal behavior. Only Doctor Bashir in the O'Brien variant is protected from the normal `unAlly()` transition. Older saves in which Bashir has already become tracking/fleeing because of this bug are repaired when his monster state updates.
 
 ## Stairhead logistics
 
@@ -79,15 +111,15 @@ In v0.2.12, the mod asked Brogue for a nearby item square and only afterward rej
 
 Each periodic cache contains:
 
-- 3 × **Health charm +2**, serving as field first-aid units
-- 1 × **ally-support staff +3**, alternating Protection and Haste between caches
-- 1 × **Potion of Life** for O'Brien's emergency reserve
-- 1 × ration
-- 1 × fruit
-- 1 × Potion of Levitation
-- 2 × poison-gas potions
-- 2 × paralysis-gas potions
-- 2 × confusion-gas potions
+- 3 x **Health charm +2**, serving as field first-aid units
+- 1 x **ally-support staff +3**, alternating Protection and Haste between caches
+- 1 x **Potion of Life** for O'Brien's emergency reserve
+- 1 x ration
+- 1 x fruit
+- 1 x Potion of Levitation
+- 2 x poison-gas potions
+- 2 x paralysis-gas potions
+- 2 x confusion-gas potions
 
 The gas allocation remains finite battlefield-control support; no incineration potion is supplied because the Fire staff remains the ignition source. Fire Immunity and Invisibility are not fixed DS9-cache supplies, and Haste is no longer supplied as a fixed self-buff potion. Those items can still appear through normal Brogue generation.
 
@@ -103,7 +135,7 @@ Start from a clean checkout and run:
 cd ~/Desktop/BrogueCE-O-Brien-src
 git fetch origin
 git reset --hard origin/master
-python3 apply_obrien_mod_v0_2_23.py
+python3 apply_obrien_mod_v0_2_24.py
 make -B
 ./brogue
 ```
