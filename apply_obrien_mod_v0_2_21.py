@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 """Apply O'Brien Must Survive v0.2.21 to a clean Brogue CE 1.15.1 tree.
 
-v0.2.21 fixes the 20/20 primary combat staffs so their Starfleet storage
-capacity is no longer mistaken for Brogue enchantment level.
-
-Fire, Lightning and Poison keep a fixed 20-charge mission battery, but use a
-native +3 staff enchantment for effect magnitude and natural recharge timing.
-This removes the accidental +20 damage/duration scaling and the ~11-turn natural
-recharge seen with a Wisdom ring. Blinking 10/10 and Tunneling 3/3 are unchanged.
+Fire, Lightning and Poison keep 20-shot Starfleet batteries, but their Brogue
+staff enchantment is +3 for effect magnitude and natural recharge timing.
+Capacity and enchantment are deliberately independent.
 """
 
 from pathlib import Path
@@ -51,40 +47,60 @@ def replace_exact_count(rel, old, new, expected_count, marker=None):
     )
 
 
-# A primary combat staff has two independent values in this variant:
-# - native Brogue enchantment (+3): effect magnitude and natural recharge curve;
-# - Starfleet battery capacity (20): how many shots can be stored.
-# Keep the marker separate from the Power Cell marker.
+# Independent Starfleet battery capacity for the three primary combat staffs.
 replace_once(
     "src/brogue/Rogue.h",
-    """#define OBRIEN_POWER_CELL_CAPACITY 20\n#define OBRIEN_POWER_CELL_TRICKLE_TURNS 100\n#define OBRIEN_POWER_CELL_MARKER (-220)""",
-    """#define OBRIEN_POWER_CELL_CAPACITY 20\n#define OBRIEN_POWER_CELL_TRICKLE_TURNS 100\n#define OBRIEN_POWER_CELL_MARKER (-220)\n#define OBRIEN_PRIMARY_STAFF_CAPACITY 20\n#define OBRIEN_PRIMARY_STAFF_ENCHANTMENT 3\n#define OBRIEN_PRIMARY_STAFF_MARKER (-221)""",
+    """#define OBRIEN_POWER_CELL_CAPACITY 20
+#define OBRIEN_POWER_CELL_TRICKLE_TURNS 100
+#define OBRIEN_POWER_CELL_MARKER (-220)""",
+    """#define OBRIEN_POWER_CELL_CAPACITY 20
+#define OBRIEN_POWER_CELL_TRICKLE_TURNS 100
+#define OBRIEN_POWER_CELL_MARKER (-220)
+#define OBRIEN_PRIMARY_STAFF_CAPACITY 20
+#define OBRIEN_PRIMARY_STAFF_ENCHANTMENT 3
+#define OBRIEN_PRIMARY_STAFF_MARKER (-221)""",
     "OBRIEN_PRIMARY_STAFF_CAPACITY",
 )
 
-# Expose the capacity helper because inventory display, recharge items and the
-# Power Cell transfer path all need to ask the same question.
 replace_once(
     "src/brogue/Rogue.h",
-    """    short staffChargeDuration(const item *theItem);\n    void rechargeItemsIncrementally(short multiplier);""",
-    """    short staffChargeCapacity(const item *theItem);\n    short staffChargeDuration(const item *theItem);\n    void rechargeItemsIncrementally(short multiplier);""",
+    """    short staffChargeDuration(const item *theItem);
+    void rechargeItemsIncrementally(short multiplier);""",
+    """    short staffChargeCapacity(const item *theItem);
+    short staffChargeDuration(const item *theItem);
+    void rechargeItemsIncrementally(short multiplier);""",
     "short staffChargeCapacity(const item *theItem);",
 )
 
-# Capacity is 20 only for the three explicitly marked mission combat staffs.
-# Every ordinary Brogue staff, Blink and Tunneling continue to use enchant1 as
-# their native maximum charge count. staffChargeDuration deliberately remains
-# based on enchant1, so +3 means native +3 recharge timing.
+# Ordinary staffs still use enchant1 as capacity. Only marked O'Brien primary
+# Fire/Lightning/Poison staffs get the separate 20-shot battery.
 replace_once(
     "src/brogue/Time.c",
-    """short staffChargeDuration(const item *theItem) {\n    // staffs of blinking and obstruction recharge half as fast so they're less powerful\n    return (theItem->kind == STAFF_BLINKING || theItem->kind == STAFF_OBSTRUCTION ? 10000 : 5000) / theItem->enchant1;\n}""",
-    """short staffChargeCapacity(const item *theItem) {\n    if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE\n        && theItem != NULL\n        && (theItem->category & STAFF)\n        && theItem->originDepth == OBRIEN_PRIMARY_STAFF_MARKER\n        && (theItem->kind == STAFF_FIRE\n            || theItem->kind == STAFF_LIGHTNING\n            || theItem->kind == STAFF_POISON)) {\n\n        return OBRIEN_PRIMARY_STAFF_CAPACITY;\n    }\n    return theItem ? theItem->enchant1 : 0;\n}\n\nshort staffChargeDuration(const item *theItem) {\n    // staffs of blinking and obstruction recharge half as fast so they're less powerful\n    return (theItem->kind == STAFF_BLINKING || theItem->kind == STAFF_OBSTRUCTION ? 10000 : 5000) / theItem->enchant1;\n}""",
+    """short staffChargeDuration(const item *theItem) {
+    // staffs of blinking and obstruction recharge half as fast so they're less powerful
+    return (theItem->kind == STAFF_BLINKING || theItem->kind == STAFF_OBSTRUCTION ? 10000 : 5000) / theItem->enchant1;
+}""",
+    """short staffChargeCapacity(const item *theItem) {
+    if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
+        && theItem != NULL
+        && (theItem->category & STAFF)
+        && theItem->originDepth == OBRIEN_PRIMARY_STAFF_MARKER
+        && (theItem->kind == STAFF_FIRE
+            || theItem->kind == STAFF_LIGHTNING
+            || theItem->kind == STAFF_POISON)) {
+
+        return OBRIEN_PRIMARY_STAFF_CAPACITY;
+    }
+    return theItem ? theItem->enchant1 : 0;
+}
+
+short staffChargeDuration(const item *theItem) {
+    // staffs of blinking and obstruction recharge half as fast so they're less powerful
+    return (theItem->kind == STAFF_BLINKING || theItem->kind == STAFF_OBSTRUCTION ? 10000 : 5000) / theItem->enchant1;
+}""",
     "short staffChargeCapacity(const item *theItem)",
 )
 
-# Natural staff charging must stop at the independent storage capacity. This is
-# the key separation: recharge speed still comes from +3, maximum stored shots
-# come from staffChargeCapacity().
 replace_exact_count(
     "src/brogue/Time.c",
     "theItem->charges < theItem->enchant1",
@@ -93,55 +109,120 @@ replace_exact_count(
     "theItem->charges < staffChargeCapacity(theItem)",
 )
 
-# Inventory labels still show the Starfleet battery as 20/20 even though its
-# internal native enchantment is +3.
+# Inventory name: retain 20/20 presentation even though the effect enchantment is +3.
 replace_once(
     "src/brogue/Items.c",
-    """            if (includeDetails) {\n                if ((theItem->flags & ITEM_IDENTIFIED) || rogue.playbackOmniscience) {\n                    sprintf(buf, \"%s%s [%i/%i]\", root, grayEscapeSequence, theItem->charges, theItem->enchant1);\n                    strcpy(root, buf);\n                } else if (theItem->flags & ITEM_MAX_CHARGES_KNOWN) {\n                    sprintf(buf, \"%s%s [?/%i]\", root, grayEscapeSequence, theItem->enchant1);\n                    strcpy(root, buf);\n                }\n            }\n            break;""",
-    """            if (includeDetails) {\n                if ((theItem->flags & ITEM_IDENTIFIED) || rogue.playbackOmniscience) {\n                    sprintf(buf, \"%s%s [%i/%i]\", root, grayEscapeSequence,\n                            theItem->charges, staffChargeCapacity(theItem));\n                    strcpy(root, buf);\n                } else if (theItem->flags & ITEM_MAX_CHARGES_KNOWN) {\n                    sprintf(buf, \"%s%s [?/%i]\", root, grayEscapeSequence, staffChargeCapacity(theItem));\n                    strcpy(root, buf);\n                }\n            }\n            break;""",
+    """            if (includeDetails) {
+                if ((theItem->flags & ITEM_IDENTIFIED) || rogue.playbackOmniscience) {
+                    sprintf(buf, "%s%s [%i/%i]", root, grayEscapeSequence, theItem->charges, theItem->enchant1);
+                    strcpy(root, buf);
+                } else if (theItem->flags & ITEM_MAX_CHARGES_KNOWN) {
+                    sprintf(buf, "%s%s [?/%i]", root, grayEscapeSequence, theItem->enchant1);
+                    strcpy(root, buf);
+                }
+            }
+            break;""",
+    """            if (includeDetails) {
+                if ((theItem->flags & ITEM_IDENTIFIED) || rogue.playbackOmniscience) {
+                    sprintf(buf, "%s%s [%i/%i]", root, grayEscapeSequence,
+                            theItem->charges, staffChargeCapacity(theItem));
+                    strcpy(root, buf);
+                } else if (theItem->flags & ITEM_MAX_CHARGES_KNOWN) {
+                    sprintf(buf, "%s%s [?/%i]", root, grayEscapeSequence, staffChargeCapacity(theItem));
+                    strcpy(root, buf);
+                }
+            }
+            break;""",
     "staffChargeCapacity(theItem));",
 )
 
-# Likewise, the detail pane reports the independent capacity while calculating
-# recharge time from native Brogue staffChargeDuration(+3). That means Wisdom
-# continues to work normally, but no longer sees an accidental +20 staff.
+# Detail pane: only replace the maximum-capacity arguments. Recharge timing still
+# comes from staffChargeDuration(), which deliberately uses the native +3 enchant.
 replace_once(
     "src/brogue/Items.c",
-    """            // charges\n            new = apparentRingBonus(RING_WISDOM);\n            if ((theItem->flags & ITEM_IDENTIFIED)  || rogue.playbackOmniscience) {\n                sprintf(buf2, \"\\\n\\\nThe %s has %i charges remaining out of a maximum of %i charges, and%s recovers a charge in approximately %lli turns. \",\n                        theName,\n                        theItem->charges,\n                        theItem->enchant1,\n                        new == 0 ? \"\" : \", with your current rings,\",\n                        FP_DIV(staffChargeDuration(theItem), 10 * ringWisdomMultiplier(new * FP_FACTOR)));\n                strcat(buf, buf2);\n            } else if (theItem->flags & ITEM_MAX_CHARGES_KNOWN) {\n                sprintf(buf2, \"\\\n\\\nThe %s has a maximum of %i charges, and%s recovers a charge in approximately %lli turns. \",\n                        theName,\n                        theItem->enchant1,\n                        new == 0 ? \"\" : \", with your current rings,\",\n                        FP_DIV(staffChargeDuration(theItem), 10 * ringWisdomMultiplier(new * FP_FACTOR)));\n                strcat(buf, buf2);\n            }""",
-    """            // charges\n            new = apparentRingBonus(RING_WISDOM);\n            if ((theItem->flags & ITEM_IDENTIFIED)  || rogue.playbackOmniscience) {\n                sprintf(buf2, \"\\\n\\\nThe %s has %i charges remaining out of a maximum of %i charges, and%s recovers a charge in approximately %lli turns. \",\n                        theName,\n                        theItem->charges,\n                        staffChargeCapacity(theItem),\n                        new == 0 ? \"\" : \", with your current rings,\",\n                        FP_DIV(staffChargeDuration(theItem), 10 * ringWisdomMultiplier(new * FP_FACTOR)));\n                strcat(buf, buf2);\n            } else if (theItem->flags & ITEM_MAX_CHARGES_KNOWN) {\n                sprintf(buf2, \"\\\n\\\nThe %s has a maximum of %i charges, and%s recovers a charge in approximately %lli turns. \",\n                        theName,\n                        staffChargeCapacity(theItem),\n                        new == 0 ? \"\" : \", with your current rings,\",\n                        FP_DIV(staffChargeDuration(theItem), 10 * ringWisdomMultiplier(new * FP_FACTOR)));\n                strcat(buf, buf2);\n            }""",
-    "staffChargeCapacity(theItem),",
+    """                        theName,
+                        theItem->charges,
+                        theItem->enchant1,
+                        new == 0 ? "" : ", with your current rings,",""",
+    """                        theName,
+                        theItem->charges,
+                        staffChargeCapacity(theItem),
+                        new == 0 ? "" : ", with your current rings,",""",
+    "theItem->charges,\n                        staffChargeCapacity(theItem),",
 )
 
-# Native Recharging charm / Scroll of Recharging fills the independent battery
-# to 20, but recharge progress remains on the +3 native curve.
 replace_once(
     "src/brogue/Items.c",
-    """        if (tempItem->category & categories & STAFF) {\n            x++;\n            tempItem->charges = tempItem->enchant1;\n            tempItem->enchant2 = (tempItem->kind == STAFF_BLINKING || tempItem->kind == STAFF_OBSTRUCTION ? 10000 : 5000) / tempItem->enchant1;\n        }""",
-    """        if (tempItem->category & categories & STAFF) {\n            x++;\n            tempItem->charges = staffChargeCapacity(tempItem);\n            tempItem->enchant2 = staffChargeDuration(tempItem);\n        }""",
+    """                        theName,
+                        theItem->enchant1,
+                        new == 0 ? "" : ", with your current rings,",""",
+    """                        theName,
+                        staffChargeCapacity(theItem),
+                        new == 0 ? "" : ", with your current rings,",""",
+    "theName,\n                        staffChargeCapacity(theItem),",
+)
+
+# Native Recharging charm/scroll fills the independent battery, while reset of
+# recharge progress continues to follow native staff timing.
+replace_once(
+    "src/brogue/Items.c",
+    """        if (tempItem->category & categories & STAFF) {
+            x++;
+            tempItem->charges = tempItem->enchant1;
+            tempItem->enchant2 = (tempItem->kind == STAFF_BLINKING || tempItem->kind == STAFF_OBSTRUCTION ? 10000 : 5000) / tempItem->enchant1;
+        }""",
+    """        if (tempItem->category & categories & STAFF) {
+            x++;
+            tempItem->charges = staffChargeCapacity(tempItem);
+            tempItem->enchant2 = staffChargeDuration(tempItem);
+        }""",
     "tempItem->charges = staffChargeCapacity(tempItem);",
 )
 
-# Emergency Power Cells also transfer against the independent battery capacity.
+# Emergency Power Cells transfer against storage capacity, not enchantment.
 replace_once(
     "src/brogue/Items.c",
-    """    if (target->charges >= target->enchant1) {\n        itemName(target, targetName, false, false, NULL);\n        sprintf(buf, \"Your %s is already fully charged.\", targetName);\n        messageWithColor(buf, &itemMessageColor, 0);\n        return false;\n    }\n\n    transferred = min(cell->charges, target->enchant1 - target->charges);""",
-    """    if (target->charges >= staffChargeCapacity(target)) {\n        itemName(target, targetName, false, false, NULL);\n        sprintf(buf, \"Your %s is already fully charged.\", targetName);\n        messageWithColor(buf, &itemMessageColor, 0);\n        return false;\n    }\n\n    transferred = min(cell->charges, staffChargeCapacity(target) - target->charges);""",
+    """    if (target->charges >= target->enchant1) {
+        itemName(target, targetName, false, false, NULL);
+        sprintf(buf, "Your %s is already fully charged.", targetName);
+        messageWithColor(buf, &itemMessageColor, 0);
+        return false;
+    }
+
+    transferred = min(cell->charges, target->enchant1 - target->charges);""",
+    """    if (target->charges >= staffChargeCapacity(target)) {
+        itemName(target, targetName, false, false, NULL);
+        sprintf(buf, "Your %s is already fully charged.", targetName);
+        messageWithColor(buf, &itemMessageColor, 0);
+        return false;
+    }
+
+    transferred = min(cell->charges, staffChargeCapacity(target) - target->charges);""",
     "target->charges >= staffChargeCapacity(target)",
 )
 
-# Enchanting a marked 20-capacity staff should improve its native effect/recharge
-# enchantment, not collapse a partially charged 20-shot battery down to the new
-# enchantment number. Ordinary staffs retain the original clamp behavior.
+# Enchanting a marked staff may improve native power/recharge without shrinking
+# its separate 20-shot battery to the new enchantment number.
 replace_once(
     "src/brogue/Items.c",
-    """        if ((theItem->category & STAFF)\n            && theItem->charges > newEnchant) {\n\n            theItem->charges = newEnchant;\n        }""",
-    """        if ((theItem->category & STAFF)\n            && theItem->charges > (theItem->originDepth == OBRIEN_PRIMARY_STAFF_MARKER\n                                   ? OBRIEN_PRIMARY_STAFF_CAPACITY\n                                   : newEnchant)) {\n\n            theItem->charges = (theItem->originDepth == OBRIEN_PRIMARY_STAFF_MARKER\n                                ? OBRIEN_PRIMARY_STAFF_CAPACITY\n                                : newEnchant);\n        }""",
+    """        if ((theItem->category & STAFF)
+            && theItem->charges > newEnchant) {
+
+            theItem->charges = newEnchant;
+        }""",
+    """        if ((theItem->category & STAFF)
+            && theItem->charges > (theItem->originDepth == OBRIEN_PRIMARY_STAFF_MARKER
+                                   ? OBRIEN_PRIMARY_STAFF_CAPACITY
+                                   : newEnchant)) {
+
+            theItem->charges = (theItem->originDepth == OBRIEN_PRIMARY_STAFF_MARKER
+                                ? OBRIEN_PRIMARY_STAFF_CAPACITY
+                                : newEnchant);
+        }""",
     "theItem->originDepth == OBRIEN_PRIMARY_STAFF_MARKER",
 )
 
-# Build the three primary staffs explicitly as +3 Brogue staffs carrying a
-# separate 20-unit Starfleet battery. The generic helper remains for Blink,
-# Tunneling and other native-capacity mission items.
+# Create the three primary mission staffs as native +3 staffs with 20-shot cells.
 replace_once(
     "src/brogue/RogueMain.c",
     "static void obrienLoadStartingPack(void) {",
@@ -168,17 +249,33 @@ static void obrienLoadStartingPack(void) {''',
 
 replace_once(
     "src/brogue/RogueMain.c",
-    """    obrienAddMissionItemToPack(STAFF, STAFF_FIRE, 20);\n    obrienAddMissionItemToPack(STAFF, STAFF_LIGHTNING, 20);\n    obrienAddMissionItemToPack(STAFF, STAFF_POISON, 20);\n    obrienAddMissionItemToPack(STAFF, STAFF_BLINKING, 10);""",
-    """    obrienAddPrimaryCombatStaffToPack(STAFF_FIRE);\n    obrienAddPrimaryCombatStaffToPack(STAFF_LIGHTNING);\n    obrienAddPrimaryCombatStaffToPack(STAFF_POISON);\n    obrienAddMissionItemToPack(STAFF, STAFF_BLINKING, 10);""",
+    """    obrienAddMissionItemToPack(STAFF, STAFF_FIRE, 20);
+    obrienAddMissionItemToPack(STAFF, STAFF_LIGHTNING, 20);
+    obrienAddMissionItemToPack(STAFF, STAFF_POISON, 20);
+    obrienAddMissionItemToPack(STAFF, STAFF_BLINKING, 10);""",
+    """    obrienAddPrimaryCombatStaffToPack(STAFF_FIRE);
+    obrienAddPrimaryCombatStaffToPack(STAFF_LIGHTNING);
+    obrienAddPrimaryCombatStaffToPack(STAFF_POISON);
+    obrienAddMissionItemToPack(STAFF, STAFF_BLINKING, 10);""",
     "obrienAddPrimaryCombatStaffToPack(STAFF_FIRE);",
 )
 
-# Bashir's finite poison staff follows the same split model if it is ever
-# inspected, dropped or transferred: 20 stored shots, native +3 poison power.
+# Bashir's finite poison staff gets the same split model.
 replace_once(
     "src/brogue/RogueMain.c",
-    """    if (bashir->carriedItem) {\n        bashir->carriedItem->enchant1 = 20;\n        bashir->carriedItem->charges = 20;\n        identifyItemKind(bashir->carriedItem);\n        identify(bashir->carriedItem);\n    }""",
-    """    if (bashir->carriedItem) {\n        bashir->carriedItem->enchant1 = OBRIEN_PRIMARY_STAFF_ENCHANTMENT;\n        bashir->carriedItem->charges = OBRIEN_PRIMARY_STAFF_CAPACITY;\n        bashir->carriedItem->originDepth = OBRIEN_PRIMARY_STAFF_MARKER;\n        identifyItemKind(bashir->carriedItem);\n        identify(bashir->carriedItem);\n    }""",
+    """    if (bashir->carriedItem) {
+        bashir->carriedItem->enchant1 = 20;
+        bashir->carriedItem->charges = 20;
+        identifyItemKind(bashir->carriedItem);
+        identify(bashir->carriedItem);
+    }""",
+    """    if (bashir->carriedItem) {
+        bashir->carriedItem->enchant1 = OBRIEN_PRIMARY_STAFF_ENCHANTMENT;
+        bashir->carriedItem->charges = OBRIEN_PRIMARY_STAFF_CAPACITY;
+        bashir->carriedItem->originDepth = OBRIEN_PRIMARY_STAFF_MARKER;
+        identifyItemKind(bashir->carriedItem);
+        identify(bashir->carriedItem);
+    }""",
     "bashir->carriedItem->originDepth = OBRIEN_PRIMARY_STAFF_MARKER",
 )
 
@@ -192,8 +289,8 @@ replace_once(
 print("O'Brien Must Survive v0.2.21 applied.")
 print("- Fire / Lightning / Poison: 20/20 storage, native +3 effect and recharge curve")
 print("- 20-shot capacity no longer acts as +20 enchantment")
-print("- Natural recharge, Wisdom and staff effects now follow ordinary Brogue +3 rules")
-print("- Recharging charm/scroll and Emergency Power Cells still fill the full 20-shot battery")
-print("- Bashir's finite poison staff uses the same 20-capacity / +3 split")
+print("- Natural recharge and Wisdom now follow ordinary Brogue +3 staff rules")
+print("- Recharging charm/scroll and Emergency Power Cells still fill to 20/20")
+print("- Bashir's poison staff uses the same 20-capacity / +3 split")
 print("- Blinking 10/10 and Tunneling 3/3 are unchanged")
 print("Build normally with: make -B")
