@@ -1,8 +1,8 @@
-# O'Brien Must Survive v0.2.22
+# O'Brien Must Survive v0.2.23
 
 This repository includes a chained updater for **Brogue CE 1.15.1**. Apply the newest updater to a clean source tree; it runs all earlier O'Brien patches in order.
 
-## v0.2.22 design
+## v0.2.23 design
 
 - **O'Brien Must Survive is a fourth Variant**, alongside Brogue, Rapid Brogue and Bullet Brogue.
 - **Normal / Easy / Wizard remain Modes** and are independent of the selected Variant.
@@ -10,6 +10,7 @@ This repository includes a chained updater for **Brogue CE 1.15.1**. Apply the n
 - Full tricorder analysis identifies item type, enchantment, runic state and curse state in the O'Brien variant.
 - Bashir is a finite-HP defensive medic, follows O'Brien, has permanent flight/levitation, and carries a finite 20-shot poison staff. He has no innate poison bolt, shield or haste ability.
 - **Bashir is permanent Starfleet crew.** Friendly fire can still injure him, but it never causes `unAlly()` defection. v0.2.22 also repairs older saves where friendly fire already stripped his ally/follower identity.
+- **v0.2.23 fixes cramped stairhead resupply loss.** The protected 3x3 stairhead lane is temporarily reserved before Brogue searches for each cache-item location, so the placement helper searches outward instead of repeatedly proposing forbidden near-stair squares and silently deleting supplies.
 
 ## Mission-ready starting pack
 
@@ -70,11 +71,13 @@ Vanilla Brogue allies retain their normal behavior. Only Doctor Bashir in the O'
 
 ## Stairhead logistics
 
-Auxiliary supplies materialize near designated stairwells as physical floor items, so normal Brogue inventory choices still matter. The full 3x3 area centered on the stair anchor remains an item-free exit zone; if a supply item cannot be placed outside that clear lane, it is omitted rather than blocking O'Brien's route.
+Auxiliary supplies materialize near designated stairwells as physical floor items, so normal Brogue inventory choices still matter. The full 3x3 area centered on the stair anchor remains an item-free exit zone.
 
-**Periodic resupply now occurs every 3 depths:** 3, 6, 9, 12, and so on. A cache is generated only on the first visit to that depth, so returning to a previously visited supply floor cannot duplicate it.
+In v0.2.12, the mod asked Brogue for a nearby item square and only afterward rejected squares inside the protected 3x3 lane. On cramped layouts the helper could repeatedly return those same nearest forbidden squares until the retry budget expired, causing individual supplies to be silently deleted. **v0.2.23 fixes this by temporarily marking the 3x3 lane as occupied during the location query and restoring every map flag immediately afterward.** Brogue therefore searches outward naturally for the cache instead of repeatedly returning a forbidden square.
 
-Each v0.2.22 periodic cache contains:
+**Periodic resupply occurs every 3 depths:** 3, 6, 9, 12, and so on. A cache is generated only on the first visit to that depth, so returning to a previously visited supply floor cannot duplicate it.
+
+Each periodic cache contains:
 
 - 3 × **Health charm +2**, serving as field first-aid units
 - 1 × **ally-support staff +3**, alternating Protection and Haste between caches
@@ -100,7 +103,7 @@ Start from a clean checkout and run:
 cd ~/Desktop/BrogueCE-O-Brien-src
 git fetch origin
 git reset --hard origin/master
-python3 apply_obrien_mod_v0_2_22.py
+python3 apply_obrien_mod_v0_2_23.py
 make -B
 ./brogue
 ```
