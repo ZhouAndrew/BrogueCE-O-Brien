@@ -1,8 +1,8 @@
-# O'Brien Must Survive v0.2.12
+# O'Brien Must Survive v0.2.13
 
 This repository includes a chained updater for **Brogue CE 1.15.1**. Apply the newest updater to a clean source tree; it runs all earlier O'Brien patches in order.
 
-## v0.2.12 design
+## v0.2.13 design
 
 - **O'Brien Must Survive is a fourth Variant**, alongside Brogue, Rapid Brogue and Bullet Brogue.
 - **Normal / Easy / Wizard remain Modes** and are independent of the selected Variant.
@@ -19,9 +19,10 @@ O'Brien begins with the fixed Starfleet mission kit **already in his backpack**:
 - Lightning staff: `20/20`
 - Poison staff: `20/20`
 - Blinking staff: `10/10`, capped at 20 spaces in this variant
+- Tunneling staff: `3/3`
 - Three separate `+12 Recharging` charms using Brogue's native charm mechanics
 
-The three Recharging charms are independent items. They are activated through Brogue's normal **Apply (`a`)** command. There is no custom `p`-key refill spell, and natural staff recharge speed remains unchanged.
+Tunneling is treated as a core engineering tool and no longer has to be collected from the first stairhead cache. The three Recharging charms are independent items and can recharge Tunneling under Brogue's normal native Recharging behavior. They are activated through Brogue's normal **Apply (`a`)** command. There is no custom `p`-key refill spell, and natural staff recharge speed remains unchanged.
 
 The standard mission kit is no longer scattered around the first stairwell.
 
@@ -29,7 +30,7 @@ The standard mission kit is no longer scattered around the first stairwell.
 
 Auxiliary supplies still materialize near designated stairwells. They remain physical floor items, so normal Brogue inventory choices still matter.
 
-- The initial stairhead cache keeps optional survival/engineering equipment, including the Tunneling staff, rather than duplicating the fixed mission kit.
+- The initial stairhead cache keeps optional survival supplies but no longer duplicates Tunneling or the other fixed mission-kit staffs.
 - The full 3x3 area centered on the stair anchor is reserved as an item-free exit zone for O'Brien's DS9 cache. The player is not forced to step across supplied equipment just to leave the stairhead.
 - If a particular supply item cannot be placed outside that clear zone, it is omitted rather than violating the clear-lane rule.
 - Fire Immunity, Invisibility and Haste are no longer fixed DS9 cache supplies. They can still appear through normal Brogue random generation.
@@ -50,10 +51,12 @@ Start from a clean checkout and run:
 cd ~/Desktop/BrogueCE-O-Brien-src
 git fetch origin
 git reset --hard origin/master
-python3 apply_obrien_mod_v0_2_12.py
+python3 apply_obrien_mod_v0_2_13.py
 make -B
-./bin/brogue
+./brogue
 ```
+
+Use the repository's `./brogue` launcher rather than running `./bin/brogue` from the repository root. The launcher changes into `bin/` first so the game can find `bin/assets/tiles.png` correctly.
 
 No special `CPPFLAGS` are required.
 
@@ -65,14 +68,14 @@ Normal, Easy or Wizard mode can still be selected independently.
 
 ## Command line
 
-The patched build also accepts:
+For command-line variant selection, run from the repository root through the launcher:
 
 ```bash
-./bin/brogue --variant obrien_must_survive
+./brogue --variant obrien_must_survive
 ```
 
 or:
 
 ```bash
-./bin/brogue --variant obrien
+./brogue --variant obrien
 ```
