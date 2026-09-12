@@ -1,8 +1,8 @@
-# O'Brien Must Survive v0.2.15
+# O'Brien Must Survive v0.2.16
 
 This repository includes a chained updater for **Brogue CE 1.15.1**. Apply the newest updater to a clean source tree; it runs all earlier O'Brien patches in order.
 
-## v0.2.15 design
+## v0.2.16 design
 
 - **O'Brien Must Survive is a fourth Variant**, alongside Brogue, Rapid Brogue and Bullet Brogue.
 - **Normal / Easy / Wizard remain Modes** and are independent of the selected Variant.
@@ -41,6 +41,8 @@ In other Brogue variants, Recharging charms retain their original native behavio
 
 Auxiliary supplies still materialize near designated stairwells. They remain physical floor items, so normal Brogue inventory choices still matter.
 
+- The **initial stairhead cache includes one emergency Scroll of Recharging**. It is intentionally floor-staged instead of preloaded in O'Brien's backpack, serving as a one-shot high-power reserve if the opening mission turns into a severe engagement.
+- That emergency scroll does **not** repeat in the five-depth periodic caches; additional Scrolls of Recharging must come from normal dungeon generation.
 - The initial stairhead cache keeps optional survival supplies but no longer duplicates Tunneling, the primary mission staffs, Power Cells, or the two mission rings.
 - The full 3x3 area centered on the stair anchor is reserved as an item-free exit zone. The player is not forced to step across supplied equipment just to leave the stairhead.
 - If a particular supply item cannot be placed outside that clear zone, it is omitted rather than violating the clear-lane rule.
@@ -62,7 +64,7 @@ Start from a clean checkout and run:
 cd ~/Desktop/BrogueCE-O-Brien-src
 git fetch origin
 git reset --hard origin/master
-python3 apply_obrien_mod_v0_2_15.py
+python3 apply_obrien_mod_v0_2_16.py
 make -B
 ./brogue
 ```
