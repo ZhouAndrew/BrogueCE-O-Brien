@@ -1,28 +1,56 @@
-# O'Brien Must Survive v0.2
+# O'Brien Must Survive v0.2.11
 
-This repository now includes `apply_obrien_mod.py`, which converts a **clean Brogue CE 1.15.1 source tree** into the O'Brien Must Survive v0.2 build.
+This repository includes a chained updater for **Brogue CE 1.15.1**. Apply the newest updater to a clean source tree; it runs all earlier O'Brien patches in order.
 
-## v0.2 design
+## v0.2.11 design
 
 - **O'Brien Must Survive is a fourth Variant**, alongside Brogue, Rapid Brogue and Bullet Brogue.
 - **Normal / Easy / Wizard remain Modes** and are independent of the selected Variant.
 - The old compile-time `-DOBRIEN_BROGUE` switch is no longer used.
-- O'Brien and Bashir are explicitly male for pronoun generation, preventing immersion-breaking text such as `her enemies`.
-- Mission equipment is **materialized on the floor around the entry stairwell**. The player chooses what to pick up; supplies are never force-inserted into the pack.
-- Periodic DS9 resupply is delivered at the stairwell every 5 depths.
-- Resupply is biased toward **survival, escape, food and ammunition**. It deliberately does not hand out stockpiles of caustic gas, paralysis, confusion or incineration potions.
-- A life potion is only included in every second periodic cache, so resupply does not become an unlimited permanent-HP fountain.
-- Inventory UI clamps remaining capacity to zero, and the O'Brien supply system itself respects normal Brogue inventory capacity by leaving excess choices on the floor.
+- O'Brien keeps normal Brogue fragility: the mod improves equipment, information, mobility and logistics rather than turning him into a tank.
+- Full tricorder analysis identifies item type, enchantment, runic state and curse state in the O'Brien variant.
+- Bashir is a finite-HP defensive medic, follows O'Brien, has permanent flight/levitation, and carries a finite 20/20 poison staff. He has no innate poison bolt, shield or haste ability.
+
+## Mission-ready starting pack
+
+O'Brien now begins with the fixed Starfleet mission kit **already in his backpack**:
+
+- Fire staff: `20/20`
+- Lightning staff: `20/20`
+- Poison staff: `20/20`
+- Blinking staff: `10/10`, capped at 20 spaces in this variant
+- Three separate `+12 Recharging` charms using Brogue's native charm mechanics
+
+The three Recharging charms are independent items. They are activated through Brogue's normal **Apply (`a`)** command. There is no custom `p`-key refill spell, and natural staff recharge speed remains unchanged.
+
+The standard mission kit is no longer scattered around the first stairwell.
+
+## Stairhead logistics
+
+Auxiliary supplies still materialize near designated stairwells. They remain physical floor items, so normal Brogue inventory choices still matter.
+
+- The initial stairhead cache keeps optional survival/engineering equipment rather than duplicating the fixed mission kit.
+- Fire Immunity, Invisibility and Haste are no longer fixed DS9 cache supplies. They can still appear through normal Brogue random generation.
+- Periodic resupply occurs every 5 depths.
+- Each periodic cache includes finite battlefield-control gas: 2 poison gas, 2 paralysis gas and 2 confusion gas potions.
+- No incineration potion is supplied; the Fire staff remains the ignition source.
+- A life potion remains on the rarer medical cadence rather than appearing in every cache.
+- Full packs refuse additional pickups normally; carried items are never auto-dropped. Remaining capacity display is clamped at zero rather than becoming negative.
+- Deep water does not eject O'Brien's carried items; other variants retain normal Brogue current behavior.
+
+Normal dungeon weapons, armor, staffs, wands, charms and other loot remain usable. O'Brien is an engineer, not a weapon-restricted class.
 
 ## Apply
 
-Start from a clean checkout. Do not apply v0.2 on top of the old v0.1.x `OBRIEN_BROGUE` source patch.
+Start from a clean checkout and run:
 
 ```bash
-cd ~/Desktop/BrogueCE-O-Brien
-python3 apply_obrien_mod.py
+cd ~/Desktop/BrogueCE-O-Brien-src
+git fetch origin
+git reset --hard origin/master
+python3 apply_obrien_mod_v0_2_11.py
 make -B
-./brogue
+./bin/brogue
 ```
 
 No special `CPPFLAGS` are required.
@@ -31,7 +59,7 @@ Then select:
 
 `Play -> Change Variant -> O'Brien Must Survive`
 
-and independently choose Normal, Easy or Wizard from `Change Mode`.
+Normal, Easy or Wizard mode can still be selected independently.
 
 ## Command line
 
@@ -41,7 +69,7 @@ The patched build also accepts:
 ./bin/brogue --variant obrien_must_survive
 ```
 
-or the short alias:
+or:
 
 ```bash
 ./bin/brogue --variant obrien
