@@ -18,10 +18,8 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y libsdl2-dev libsdl2-image-dev
-      - name: Apply O'Brien v0.2.22 twice
-        run: |
-          python3 apply_obrien_mod_v0_2_22.py
-          python3 apply_obrien_mod_v0_2_22.py
+      - name: Apply O'Brien v0.2.22
+        run: python3 apply_obrien_mod_v0_2_22.py
       - name: Verify v0.2.22 gameplay markers
         run: |
           grep -q 'v0.2.22 permanent crew' src/brogue/Monsters.c
