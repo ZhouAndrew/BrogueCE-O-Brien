@@ -1,0 +1,31 @@
+name: "O'Brien Mod v0.2.27"
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'apply_obrien_mod*.py'
+      - '.github/workflows/obrien-mod-v0227.yml'
+      - 'changes/obrien-v0.2.27.md'
+  workflow_dispatch:
+
+jobs:
+  linux-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev
+      - name: Apply O'Brien v0.2.27
+        run: python3 apply_obrien_mod_v0_2_27.py
+      - name: Verify HSO toggle and native remote vision
+        run: |
+          grep -q 'Security Hologram offline. C will redeploy it with retained tactical state.' src/brogue/Monsters.c
+          grep -q 'MB_TELEPATHICALLY_REVEALED' src/brogue/Monsters.c
+          grep -q 'Toggle Security Hologram' src/brogue/IO.c
+          grep -q 'obrienSecuritySuspended' src/brogue/Monsters.c
+          grep -q "O'Brien Must Survive v0.2.27" src/brogue/RogueMain.c
+      - name: Compile
+        run: make -B -j3 bin/brogue
