@@ -1,4 +1,4 @@
-name: "O'Brien Mod v0.2.19"
+name: "O'Brien Mod v0.2.20"
 on:
   push:
     branches: [ master ]
@@ -23,6 +23,7 @@ on:
       - 'apply_obrien_mod_v0_2_17.py'
       - 'apply_obrien_mod_v0_2_18.py'
       - 'apply_obrien_mod_v0_2_19.py'
+      - 'apply_obrien_mod_v0_2_20.py'
       - '.github/workflows/obrien-mod-v025.yml'
   workflow_dispatch:
 
@@ -36,9 +37,9 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y libsdl2-dev libsdl2-image-dev
-      - name: Apply O'Brien v0.2.19
-        run: python3 apply_obrien_mod_v0_2_19.py
-      - name: Verify v0.2.19 markers
+      - name: Apply O'Brien v0.2.20
+        run: python3 apply_obrien_mod_v0_2_20.py
+      - name: Verify v0.2.20 markers
         run: |
           grep -q 'Full tricorder identification: type, enchantment, runic and curse state' src/brogue/Items.c
           grep -q 'Bashir carries a finite poison staff' src/brogue/RogueMain.c
@@ -49,24 +50,36 @@ jobs:
           grep -q 'obrienAddMissionItemToPack(STAFF, STAFF_TUNNELING, 3);' src/brogue/RogueMain.c
           grep -q 'obrienAddAndEquipMissionRing(RING_REGENERATION, 3);' src/brogue/RogueMain.c
           grep -q 'obrienAddAndEquipMissionRing(RING_WISDOM, 3);' src/brogue/RogueMain.c
+
           grep -q '#define OBRIEN_POWER_CELL_CAPACITY 20' src/brogue/Rogue.h
           grep -q '#define OBRIEN_POWER_CELL_TRICKLE_TURNS 100' src/brogue/Rogue.h
-          grep -q '#define OBRIEN_RECHARGE_SPELL_MARKER (-219)' src/brogue/Rogue.h
+          grep -q '#define OBRIEN_POWER_CELL_MARKER (-220)' src/brogue/Rogue.h
+          ! grep -q 'OBRIEN_RECHARGE_SPELL_MARKER' src/brogue/Rogue.h
+
           test "$(grep -c 'obrienAddEmergencyPowerCellToPack();' src/brogue/RogueMain.c)" -eq 3
-          grep -q 'obrienAddMissionRechargeSpellToPack' src/brogue/RogueMain.c
-          test "$(grep -c 'obrienAddMissionRechargeSpellToPack();' src/brogue/RogueMain.c)" -eq 1
-          grep -q 'v0.2.19 genuine carried Spell of Recharging' src/brogue/RogueMain.c
-          grep -q 'Spell%s of Recharging' src/brogue/Items.c
-          grep -q 'strcpy(kindName, "Spell of Recharging")' src/brogue/Items.c
-          grep -q 'A Spell of Recharging or Scroll of Recharging fills it completely.' src/brogue/Items.c
+          grep -q 'cell->originDepth = OBRIEN_POWER_CELL_MARKER;' src/brogue/RogueMain.c
+          test "$(grep -c 'obrienAddMissionItemToPack(CHARM, CHARM_RECHARGING, 3);' src/brogue/RogueMain.c)" -eq 1
+          grep -q 'v0.2.20 native slow Recharging charm' src/brogue/RogueMain.c
+          ! grep -q 'obrienAddMissionRechargeSpellToPack' src/brogue/RogueMain.c
+          ! grep -q 'Spell%s of Recharging' src/brogue/Items.c
+          ! grep -q 'strcpy(kindName, "Spell of Recharging")' src/brogue/Items.c
+
           grep -q 'Starfleet Emergency Power Cell' src/brogue/Items.c
           grep -q 'useObrienEmergencyPowerCell' src/brogue/Items.c
+          grep -q 'obrienFillEmergencyPowerCells' src/brogue/Items.c
+          grep -q 'A Recharging charm or Scroll of Recharging fills it completely.' src/brogue/Items.c
+          grep -q 'theItem->originDepth == OBRIEN_POWER_CELL_MARKER' src/brogue/Items.c
+          grep -q 'tempItem->originDepth == OBRIEN_POWER_CELL_MARKER' src/brogue/Items.c
+          grep -q 'rechargeItems(STAFF);' src/brogue/Items.c
+          grep -q 'obrienFillEmergencyPowerCells();' src/brogue/Items.c
+
           grep -q 'obrienTrickleChargeEmergencyPowerCells' src/brogue/Time.c
-          ! grep -q 'obrienAddMissionScrollToPack(SCROLL_RECHARGING);' src/brogue/RogueMain.c
+          grep -q 'theItem->originDepth == OBRIEN_POWER_CELL_MARKER' src/brogue/Time.c
+
           ! grep -q 'obrienPlaceSupplyItem(SCROLL, SCROLL_RECHARGING, 1, 0, anchor);' src/brogue/RogueMain.c
           ! grep -q 'v0.2.16 emergency external power' src/brogue/RogueMain.c
           ! grep -q 'v0.2.17 deep logistics reset' src/brogue/RogueMain.c
-          grep -q "O'Brien Must Survive v0.2.19" src/brogue/RogueMain.c
+          grep -q "O'Brien Must Survive v0.2.20" src/brogue/RogueMain.c
           grep -q 'v0.2.12 clear stairhead lane' src/brogue/RogueMain.c
           ! grep -q 'OBRIEN_RECHARGE_KEY' src/brogue/Rogue.h
           ! grep -q 'obrienRechargeCombatStaffs' src/brogue/Items.c
