@@ -1,8 +1,8 @@
-# O'Brien Must Survive v0.2.19
+# O'Brien Must Survive v0.2.20
 
 This repository includes a chained updater for **Brogue CE 1.15.1**. Apply the newest updater to a clean source tree; it runs all earlier O'Brien patches in order.
 
-## v0.2.19 design
+## v0.2.20 design
 
 - **O'Brien Must Survive is a fourth Variant**, alongside Brogue, Rapid Brogue and Bullet Brogue.
 - **Normal / Easy / Wizard remain Modes** and are independent of the selected Variant.
@@ -20,38 +20,41 @@ O'Brien begins with the fixed Starfleet mission kit **already in his backpack**:
 - Blinking staff: `10/10`, capped at 20 spaces in this variant
 - Tunneling staff: `3/3`
 - Three separate **Starfleet Emergency Power Cells**, each `20/20`
-- **Spell of Recharging**, carried in the backpack and cast with the normal Apply command
+- One native **Recharging charm +3**, initially ready
 - Ring of Regeneration: `+3`, automatically equipped
 - Ring of Wisdom: `+3`, automatically equipped
 
 The two mission rings occupy Brogue's normal two ring slots from turn zero. They are not permanently locked: the player can later replace them using normal Brogue equipment rules.
 
-## Spell of Recharging
+## Native Recharging charm
 
-The starting recharge reserve is explicitly a **Spell of Recharging**, not a Scroll of Recharging. It is a separately marked O'Brien mission spell carried from deployment and is displayed and identified as `Spell of Recharging` in the inventory.
+v0.2.20 removes the synthetic scroll-backed `Spell of Recharging` from v0.2.19. O'Brien now carries a real Brogue **Recharging charm +3**.
 
-Brogue CE does not have a native SPELL inventory category, so the implementation reuses the existing recharging-effect inventory plumbing internally while keeping the O'Brien mission object explicitly marked and presented as a spell. Ordinary dungeon **Scrolls of Recharging remain ordinary scrolls**.
+It uses Brogue's native Recharging-charm mechanics: applying it instantly recharges staffs, then the charm itself enters its normal cooldown. At `+3`, the native curve is about **1664 turns** from use to ready again (`10000 × 0.55^3`, subject to the game's integer timing). This is deliberately a strategic emergency reserve rather than a rapidly cycling power source.
 
-Casting the Spell of Recharging performs the Recharging effect and fills every Starfleet Emergency Power Cell in the pack to `20/20`. Naturally found Scrolls of Recharging also remain valid external high-power recharge sources and can fill the Power Cells.
+In the O'Brien variant only, casting the native Recharging charm also refills the three marked Starfleet Emergency Power Cells to `20/20`. Naturally found Recharging charms work the same way. Naturally found **Scrolls of Recharging** remain ordinary one-use scrolls and also refill the marked Power Cells.
 
 ## Starfleet Emergency Power Cells
 
-The old three `+12 Recharging` charms have been replaced in the O'Brien variant by finite high-discharge emergency batteries.
+The three Power Cells remain finite high-discharge emergency batteries. They are no longer implemented by globally redefining every Recharging charm in O'Brien mode. Instead, only the three mission batteries carry a dedicated internal Power Cell marker; ordinary/random Recharging charms retain their native Brogue behavior.
 
 Each Power Cell stores **20 charge-units**. Applying a Cell lets O'Brien choose one staff and immediately transfer up to 20 units to it. Only the energy actually needed is consumed: a Fire staff at `13/20` uses 7 Cell units, a Blinking staff at `0/10` uses 10, and a Tunneling staff at `1/3` uses 2.
 
 This is intentionally a high-discharge / slow-recovery system. A Cell passively recovers only **1 charge-unit per 100 turns**, so a completely empty Cell requires about 2000 turns to return to `20/20`. This slow recovery is based only on elapsed player time: **Wisdom does not accelerate it, and Reaping does not feed it**. Wisdom continues to improve the normal recharge rate of staffs themselves.
 
-The **Spell of Recharging** and naturally found **Scrolls of Recharging** are treated as external high-power recharge sources. They restore Power Cells to `20/20`; this is deliberately different from the Cells' slow trickle charging.
+The energy model is therefore layered:
 
-In other Brogue variants, Recharging charms retain their original native behavior.
+- Staffs are the normal weapon/tool batteries and recharge naturally.
+- Power Cells are immediate 20-unit emergency reserves with very slow trickle recovery.
+- The native Recharging charm is a very slow-cycling full-system emergency reset.
+- Scrolls of Recharging are rare one-use external high-power resets found through normal dungeon generation.
 
 ## Stairhead logistics
 
 Auxiliary supplies still materialize near designated stairwells. They remain physical floor items, so normal Brogue inventory choices still matter.
 
-- The initial stairhead cache no longer contains a Recharging spell or scroll; the mission Spell of Recharging is already in O'Brien's backpack.
-- The old every-ten-depth fixed Recharging-scroll resupply is removed. Additional Scrolls of Recharging come from normal dungeon generation.
+- The initial stairhead cache contains no fixed Recharging spell or scroll; the native +3 Recharging charm is already in O'Brien's backpack.
+- The old every-ten-depth fixed Recharging-scroll resupply remains removed. Additional Scrolls of Recharging come from normal dungeon generation.
 - The initial stairhead cache keeps optional survival supplies but no longer duplicates Tunneling, the primary mission staffs, Power Cells, or the two mission rings.
 - The full 3x3 area centered on the stair anchor is reserved as an item-free exit zone. The player is not forced to step across supplied equipment just to leave the stairhead.
 - If a particular supply item cannot be placed outside that clear zone, it is omitted rather than violating the clear-lane rule.
@@ -73,7 +76,7 @@ Start from a clean checkout and run:
 cd ~/Desktop/BrogueCE-O-Brien-src
 git fetch origin
 git reset --hard origin/master
-python3 apply_obrien_mod_v0_2_19.py
+python3 apply_obrien_mod_v0_2_20.py
 make -B
 ./brogue
 ```
