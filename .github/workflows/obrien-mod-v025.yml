@@ -1,4 +1,4 @@
-name: "O'Brien Mod v0.2.15"
+name: "O'Brien Mod v0.2.16"
 on:
   push:
     branches: [ master ]
@@ -19,6 +19,7 @@ on:
       - 'apply_obrien_mod_v0_2_13.py'
       - 'apply_obrien_mod_v0_2_14.py'
       - 'apply_obrien_mod_v0_2_15.py'
+      - 'apply_obrien_mod_v0_2_16.py'
       - '.github/workflows/obrien-mod-v025.yml'
   workflow_dispatch:
 
@@ -32,9 +33,9 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y libsdl2-dev libsdl2-image-dev
-      - name: Apply O'Brien v0.2.15
-        run: python3 apply_obrien_mod_v0_2_15.py
-      - name: Verify v0.2.15 markers
+      - name: Apply O'Brien v0.2.16
+        run: python3 apply_obrien_mod_v0_2_16.py
+      - name: Verify v0.2.16 markers
         run: |
           grep -q 'Full tricorder identification: type, enchantment, runic and curse state' src/brogue/Items.c
           grep -q 'Bashir carries a finite poison staff' src/brogue/RogueMain.c
@@ -70,6 +71,9 @@ jobs:
           grep -q 'obrienTrickleChargeEmergencyPowerCells' src/brogue/Time.c
           grep -q 'theItem->enchant2 >= OBRIEN_POWER_CELL_TRICKLE_TURNS' src/brogue/Time.c
           grep -q '&& !(gameVariant == VARIANT_OBRIEN_MUST_SURVIVE && theItem->kind == CHARM_RECHARGING)' src/brogue/Time.c
+          grep -q 'v0.2.16 emergency external power' src/brogue/RogueMain.c
+          test "$(grep -c 'obrienPlaceSupplyItem(SCROLL, SCROLL_RECHARGING, 1, 0, anchor);' src/brogue/RogueMain.c)" -eq 1
+          grep -q 'O'Brien Must Survive v0.2.16' src/brogue/RogueMain.c
           grep -q 'v0.2.12 clear stairhead lane' src/brogue/RogueMain.c
           grep -q 'abs(loc.x - anchor.x) > 1 || abs(loc.y - anchor.y) > 1' src/brogue/RogueMain.c
           grep -q 'attempt < 64' src/brogue/RogueMain.c
