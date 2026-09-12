@@ -1,0 +1,33 @@
+name: "O'Brien Mod v0.2.23"
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'apply_obrien_mod*.py'
+      - '.github/workflows/obrien-mod-v0223.yml'
+      - 'OBRIEN_MOD.md'
+  workflow_dispatch:
+
+jobs:
+  linux-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev
+      - name: Apply O'Brien v0.2.23
+        run: python3 apply_obrien_mod_v0_2_23.py
+      - name: Verify v0.2.23 stairhead placement fix
+        run: |
+          grep -q 'v0.2.23 reliable clear stairhead lane' src/brogue/RogueMain.c
+          grep -q 'savedStairheadFlags' src/brogue/RogueMain.c
+          grep -q 'pmapAt(reserved)->flags |= HAS_ITEM' src/brogue/RogueMain.c
+          grep -q '#define OBRIEN_SUPPLY_INTERVAL 3' src/brogue/RogueMain.c
+          grep -q 'v0.2.22 three-depth Starfleet resupply' src/brogue/RogueMain.c
+          grep -q 'v0.2.22 permanent crew' src/brogue/Monsters.c
+          grep -q "O'Brien Must Survive v0.2.23" src/brogue/RogueMain.c
+      - name: Compile
+        run: make -B -j3 bin/brogue
