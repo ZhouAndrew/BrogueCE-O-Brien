@@ -1,15 +1,32 @@
-# O'Brien Must Survive v0.2.24
+# O'Brien Must Survive v0.2.25
 
 This repository includes a chained updater for **Brogue CE 1.15.1**. Apply the newest updater to a clean source tree; it runs all earlier O'Brien patches in order.
 
-## v0.2.24 design
+## v0.2.25 design
 
 - **O'Brien Must Survive is a fourth Variant**, alongside Brogue, Rapid Brogue and Bullet Brogue.
 - **Normal / Easy / Wizard remain Modes** and are independent of the selected Variant.
 - O'Brien keeps normal Brogue fragility: the mod improves equipment, information, mobility, logistics and away-team support rather than turning him into a tank.
 - Full tricorder analysis identifies item type, enchantment, runic state and curse state in the O'Brien variant.
 - **v0.2.23** fixed cramped stairhead resupply loss while preserving the protected 3x3 stairhead lane.
-- **v0.2.24** adds a real O'Brien-variant command/spell, `Call Security`, plus emergency medical transport for Bashir.
+- **v0.2.24** added a real O'Brien-variant `Call Security` command/spell plus emergency medical transport for Bashir.
+- **v0.2.25** keeps the `+3 Ring of Wisdom` but slows passive recharge on O'Brien's marked Fire / Lightning / Poison staffs so their 20-shot batteries no longer recover at near-continuous-fire speed.
+
+## v0.2.25 primary-staff recharge pacing
+
+The **Ring of Wisdom is not removed or downgraded**. O'Brien still starts with the identified `+3 Ring of Wisdom`, it is automatically equipped, and it continues to accelerate staff recharge through Brogue's normal `ringWisdomMultiplier()` path.
+
+The change is instead applied to the three marked primary combat staffs:
+
+- Fire remains `20/20` capacity and `+3` effect strength.
+- Lightning remains `20/20` capacity and `+3` effect strength.
+- Poison remains `20/20` capacity and `+3` effect strength.
+- Their passive base recharge duration is now **5000 ticks per charge before Wisdom**, equivalent to the ordinary +1-staff base pacing.
+- Wisdom still accelerates that 5000-tick countdown normally.
+- Recharging charms, Scrolls of Recharging and Emergency Power Cells still refill the separate 20-shot battery exactly as before.
+- Blinking, Tunneling and ordinary dungeon staffs keep their normal Brogue recharge behavior.
+
+This deliberately separates **effect power** from **passive battery recovery**. The primary staffs still hit and scale as +3 staffs, but +3 effect enchantment is no longer also stacked as a second recharge-speed multiplier on top of the +3 Wisdom ring.
 
 ## Call Security spell
 
@@ -52,9 +69,9 @@ This means an accidental O'Brien Lightning hit can still be tactically disastrou
 
 O'Brien begins with the fixed Starfleet mission kit **already in his backpack**:
 
-- Fire staff: `20/20` storage, native Brogue `+3` effect/recharge level
-- Lightning staff: `20/20` storage, native Brogue `+3` effect/recharge level
-- Poison staff: `20/20` storage, native Brogue `+3` effect/recharge level
+- Fire staff: `20/20` storage, `+3` effect strength, v0.2.25 tuned passive recharge pacing
+- Lightning staff: `20/20` storage, `+3` effect strength, v0.2.25 tuned passive recharge pacing
+- Poison staff: `20/20` storage, `+3` effect strength, v0.2.25 tuned passive recharge pacing
 - Blinking staff: `10/10`, capped at 20 spaces in this variant
 - Tunneling staff: `3/3`
 - Three separate **Starfleet Emergency Power Cells**, each `20/20`
@@ -64,18 +81,19 @@ O'Brien begins with the fixed Starfleet mission kit **already in his backpack**:
 
 The two mission rings occupy Brogue's normal two ring slots from turn zero. They are not permanently locked: the player can later replace them using normal Brogue equipment rules.
 
-## 20-shot capacity is not +20 enchantment
+## 20-shot capacity, +3 effect and recharge pacing are separate
 
-The three primary combat staffs use two independent values:
+The three primary combat staffs now use three deliberately independent concepts:
 
 - **Starfleet battery capacity: 20 shots**
-- **Native Brogue staff enchantment: +3**
+- **Native Brogue effect enchantment: +3**
+- **Passive base recharge duration: 5000 ticks per charge before Wisdom**
 
-Fire, Lightning and Poison therefore retain `20/20` mission storage without accidentally behaving like +20 staffs. Damage/effect magnitude and natural recharge timing use Brogue's ordinary +3 formulas.
+Fire, Lightning and Poison therefore retain `20/20` mission storage and +3 effect strength without accidentally behaving like +20 staffs or passively recovering as fast as a normal +3 staff while also wearing a +3 Wisdom ring.
 
-The Ring of Wisdom still accelerates natural staff recharge through Brogue's normal `ringWisdomMultiplier()` path. Capacity does not amplify Wisdom. Enchanting a marked mission staff can improve its native effect/recharge enchantment without reducing its separate 20-shot battery.
+The Ring of Wisdom still accelerates natural staff recharge through Brogue's normal `ringWisdomMultiplier()` path. Capacity does not amplify Wisdom. Enchanting a marked mission staff can improve its native effect enchantment without shrinking its separate 20-shot battery; v0.2.25 intentionally keeps the marked primary staff's passive recharge baseline separate from that effect enchantment.
 
-Bashir's poison staff uses the same 20-capacity / +3 model.
+Bashir's marked poison staff uses the same 20-capacity / +3-effect / tuned-recharge model.
 
 ## Native Recharging charm
 
@@ -83,7 +101,7 @@ O'Brien carries a real Brogue **Recharging charm +3**. It uses Brogue's native R
 
 In O'Brien Must Survive, activating the native Recharging charm also refills the three marked Starfleet Emergency Power Cells to `20/20`. Naturally found Recharging charms work normally and gain the same O'Brien-only full-system extension. Naturally found Scrolls of Recharging remain ordinary one-use scrolls and also refill marked Power Cells.
 
-For the three marked primary combat staffs, Recharging fills the independent battery to `20/20`; it does not reinterpret capacity as enchantment.
+For the three marked primary combat staffs, Recharging fills the independent battery to `20/20`; it does not reinterpret capacity as enchantment and is unaffected by the v0.2.25 passive-recharge pacing change.
 
 ## Starfleet Emergency Power Cells
 
@@ -93,10 +111,10 @@ Power Cells passively recover only **1 charge-unit per 100 turns**, so a complet
 
 The energy model is therefore layered:
 
-- O'Brien Fire / Lightning / Poison: native +3 staffs with separate 20-shot batteries.
-- Bashir Poison: same finite mission-staff model.
+- O'Brien Fire / Lightning / Poison: +3 effect staffs with separate 20-shot batteries and a 5000-tick passive base recharge interval before Wisdom.
+- Bashir Poison: same finite marked-staff model.
 - HSO Lightning / Poison: internal 20-shot tactical emitter magazines with fast 35-turn recharge.
-- Other staffs: ordinary Brogue capacity/enchantment behavior unless explicitly defined otherwise.
+- Other staffs: ordinary Brogue capacity/enchantment/recharge behavior unless explicitly defined otherwise.
 - Power Cells: immediate finite 20-unit reserves with very slow trickle recovery.
 - Recharging charm: slow-cycling full-system emergency reset.
 - Scrolls of Recharging: rare one-use external resets from normal dungeon generation.
@@ -135,7 +153,7 @@ Start from a clean checkout and run:
 cd ~/Desktop/BrogueCE-O-Brien-src
 git fetch origin
 git reset --hard origin/master
-python3 apply_obrien_mod_v0_2_24.py
+python3 apply_obrien_mod_v0_2_25.py
 make -B
 ./brogue
 ```
