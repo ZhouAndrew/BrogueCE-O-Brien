@@ -1,4 +1,4 @@
-name: "O'Brien Mod v0.2.9"
+name: "O'Brien Mod v0.2.10"
 on:
   push:
     branches: [ master ]
@@ -13,6 +13,7 @@ on:
       - 'apply_obrien_mod_v0_2_7.py'
       - 'apply_obrien_mod_v0_2_8.py'
       - 'apply_obrien_mod_v0_2_9.py'
+      - 'apply_obrien_mod_v0_2_10.py'
       - '.github/workflows/obrien-mod-v025.yml'
   workflow_dispatch:
 
@@ -26,9 +27,9 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y libsdl2-dev libsdl2-image-dev
-      - name: Apply O'Brien v0.2.9
-        run: python3 apply_obrien_mod_v0_2_9.py
-      - name: Verify v0.2.9 markers
+      - name: Apply O'Brien v0.2.10
+        run: python3 apply_obrien_mod_v0_2_10.py
+      - name: Verify v0.2.10 markers
         run: |
           grep -q 'Full tricorder identification: type, enchantment, runic and curse state' src/brogue/Items.c
           grep -q 'identifyItemKind(theItem);' src/brogue/Items.c
@@ -45,14 +46,12 @@ jobs:
           grep -q 'POTION_POISON, 2, 0' src/brogue/RogueMain.c
           grep -q 'POTION_PARALYSIS, 2, 0' src/brogue/RogueMain.c
           grep -q 'POTION_CONFUSION, 2, 0' src/brogue/RogueMain.c
-          grep -q "#define OBRIEN_RECHARGE_KEY 'p'" src/brogue/Rogue.h
-          grep -q 'boolean obrienRechargeCombatStaffs(void)' src/brogue/Items.c
-          grep -q 'tempItem->kind == STAFF_FIRE' src/brogue/Items.c
-          grep -q 'tempItem->kind == STAFF_LIGHTNING' src/brogue/Items.c
-          grep -q 'tempItem->kind == STAFF_POISON' src/brogue/Items.c
-          grep -q 'tempItem->charges = tempItem->enchant1' src/brogue/Items.c
-          grep -q 'case OBRIEN_RECHARGE_KEY:' src/brogue/IO.c
-          grep -q 'Recharge combat staffs' src/brogue/IO.c
-          grep -q 'recordKeystroke(OBRIEN_RECHARGE_KEY, false, false)' src/brogue/IO.c
+          grep -q 'v0.2.10 native Recharging charms' src/brogue/RogueMain.c
+          test "$(grep -c 'obrienPlaceSupplyItem(CHARM, CHARM_RECHARGING, 1, 12, anchor);' src/brogue/RogueMain.c)" -eq 3
+          grep -q 'case CHARM_RECHARGING:' src/brogue/Items.c
+          grep -q 'rechargeItems(STAFF);' src/brogue/Items.c
+          ! grep -q 'OBRIEN_RECHARGE_KEY' src/brogue/Rogue.h
+          ! grep -q 'obrienRechargeCombatStaffs' src/brogue/Items.c
+          ! grep -q 'Recharge combat staffs' src/brogue/IO.c
       - name: Compile
         run: make -B -j3 bin/brogue
