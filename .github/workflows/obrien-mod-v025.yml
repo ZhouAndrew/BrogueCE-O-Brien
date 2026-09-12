@@ -1,4 +1,4 @@
-name: "O'Brien Mod v0.2.8"
+name: "O'Brien Mod v0.2.9"
 on:
   push:
     branches: [ master ]
@@ -12,6 +12,7 @@ on:
       - 'apply_obrien_mod_v0_2_6.py'
       - 'apply_obrien_mod_v0_2_7.py'
       - 'apply_obrien_mod_v0_2_8.py'
+      - 'apply_obrien_mod_v0_2_9.py'
       - '.github/workflows/obrien-mod-v025.yml'
   workflow_dispatch:
 
@@ -25,9 +26,9 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y libsdl2-dev libsdl2-image-dev
-      - name: Apply O'Brien v0.2.8
-        run: python3 apply_obrien_mod_v0_2_8.py
-      - name: Verify v0.2.8 markers
+      - name: Apply O'Brien v0.2.9
+        run: python3 apply_obrien_mod_v0_2_9.py
+      - name: Verify v0.2.9 markers
         run: |
           grep -q 'Full tricorder identification: type, enchantment, runic and curse state' src/brogue/Items.c
           grep -q 'identifyItemKind(theItem);' src/brogue/Items.c
@@ -40,9 +41,10 @@ jobs:
           grep -q 'return min(20, distance);' src/brogue/PowerTables.c
           grep -q 'MONST_MALE | MONST_MAINTAINS_DISTANCE | MONST_FLIES' src/brogue/RogueMain.c
           grep -q 'obrienFirstVisitToDepth(rogue.depthLevel, rogue.upLoc)' src/brogue/RogueMain.c
-          grep -q 'POTION_POISON, 1, 0' src/brogue/RogueMain.c
-          grep -q 'POTION_PARALYSIS, 1, 0' src/brogue/RogueMain.c
-          grep -q 'POTION_CONFUSION, 1, 0' src/brogue/RogueMain.c
+          grep -q 'v0.2.9 AoE gas resupply' src/brogue/RogueMain.c
+          grep -q 'POTION_POISON, 2, 0' src/brogue/RogueMain.c
+          grep -q 'POTION_PARALYSIS, 2, 0' src/brogue/RogueMain.c
+          grep -q 'POTION_CONFUSION, 2, 0' src/brogue/RogueMain.c
           grep -q "#define OBRIEN_RECHARGE_KEY 'p'" src/brogue/Rogue.h
           grep -q 'boolean obrienRechargeCombatStaffs(void)' src/brogue/Items.c
           grep -q 'tempItem->kind == STAFF_FIRE' src/brogue/Items.c
