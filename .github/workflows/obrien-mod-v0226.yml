@@ -1,0 +1,31 @@
+name: "O'Brien Mod v0.2.26"
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'apply_obrien_mod*.py'
+      - '.github/workflows/obrien-mod-v0226.yml'
+  workflow_dispatch:
+
+jobs:
+  linux-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev
+      - name: Apply O'Brien v0.2.26
+        run: python3 apply_obrien_mod_v0_2_26.py
+      - name: Verify v0.2.26 HSO short display name
+        run: |
+          grep -q 'Security Hologram' src/brogue/Monsters.c
+          ! grep -q 'Holographic Security Officer' src/brogue/Monsters.c
+          grep -q 'obrienCallSecuritySpell' src/brogue/Monsters.c
+          grep -q 'Call Security spell' src/brogue/IO.c
+          grep -q 'Security hologram already deployed' src/brogue/Monsters.c
+          grep -q "O'Brien Must Survive v0.2.26" src/brogue/RogueMain.c
+      - name: Compile
+        run: make -B -j3 bin/brogue
