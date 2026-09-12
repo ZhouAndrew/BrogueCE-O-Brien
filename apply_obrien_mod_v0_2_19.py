@@ -117,6 +117,14 @@ replace_once(
     "strcpy(kindName, \"Spell of Recharging\")",
 )
 
+# Power Cell help text now names both external recharge sources correctly.
+replace_once(
+    "src/brogue/Items.c",
+    "A Scroll of Recharging fills it completely.",
+    "A Spell of Recharging or Scroll of Recharging fills it completely.",
+    "A Spell of Recharging or Scroll of Recharging fills it completely.",
+)
+
 replace_once(
     "src/brogue/RogueMain.c",
     "    printf(\"Supports variant (obrien_must_survive): O'Brien Must Survive v0.2.18\\n\");",
