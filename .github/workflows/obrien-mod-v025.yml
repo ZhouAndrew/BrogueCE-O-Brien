@@ -73,7 +73,7 @@ jobs:
           grep -q '&& !(gameVariant == VARIANT_OBRIEN_MUST_SURVIVE && theItem->kind == CHARM_RECHARGING)' src/brogue/Time.c
           grep -q 'v0.2.16 emergency external power' src/brogue/RogueMain.c
           test "$(grep -c 'obrienPlaceSupplyItem(SCROLL, SCROLL_RECHARGING, 1, 0, anchor);' src/brogue/RogueMain.c)" -eq 1
-          grep -q 'O'Brien Must Survive v0.2.16' src/brogue/RogueMain.c
+          grep -q "O'Brien Must Survive v0.2.16" src/brogue/RogueMain.c
           grep -q 'v0.2.12 clear stairhead lane' src/brogue/RogueMain.c
           grep -q 'abs(loc.x - anchor.x) > 1 || abs(loc.y - anchor.y) > 1' src/brogue/RogueMain.c
           grep -q 'attempt < 64' src/brogue/RogueMain.c
