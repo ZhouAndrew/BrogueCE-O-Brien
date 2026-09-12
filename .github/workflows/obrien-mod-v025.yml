@@ -1,4 +1,4 @@
-name: "O'Brien Mod v0.2.12"
+name: "O'Brien Mod v0.2.13"
 on:
   push:
     branches: [ master ]
@@ -16,6 +16,7 @@ on:
       - 'apply_obrien_mod_v0_2_10.py'
       - 'apply_obrien_mod_v0_2_11.py'
       - 'apply_obrien_mod_v0_2_12.py'
+      - 'apply_obrien_mod_v0_2_13.py'
       - '.github/workflows/obrien-mod-v025.yml'
   workflow_dispatch:
 
@@ -29,9 +30,9 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y libsdl2-dev libsdl2-image-dev
-      - name: Apply O'Brien v0.2.12
-        run: python3 apply_obrien_mod_v0_2_12.py
-      - name: Verify v0.2.12 markers
+      - name: Apply O'Brien v0.2.13
+        run: python3 apply_obrien_mod_v0_2_13.py
+      - name: Verify v0.2.13 markers
         run: |
           grep -q 'Full tricorder identification: type, enchantment, runic and curse state' src/brogue/Items.c
           grep -q 'Bashir carries a finite poison staff' src/brogue/RogueMain.c
@@ -46,11 +47,12 @@ jobs:
           grep -q 'obrienAddMissionItemToPack(STAFF, STAFF_LIGHTNING, 20);' src/brogue/RogueMain.c
           grep -q 'obrienAddMissionItemToPack(STAFF, STAFF_POISON, 20);' src/brogue/RogueMain.c
           grep -q 'obrienAddMissionItemToPack(STAFF, STAFF_BLINKING, 10);' src/brogue/RogueMain.c
+          grep -q 'obrienAddMissionItemToPack(STAFF, STAFF_TUNNELING, 3); // v0.2.13 Tunneling in starting pack' src/brogue/RogueMain.c
           test "$(grep -c 'obrienAddMissionItemToPack(CHARM, CHARM_RECHARGING, 12);' src/brogue/RogueMain.c)" -eq 3
-          grep -q 'STAFF_TUNNELING, 1, 3' src/brogue/RogueMain.c
           grep -q 'v0.2.12 clear stairhead lane' src/brogue/RogueMain.c
           grep -q 'abs(loc.x - anchor.x) > 1 || abs(loc.y - anchor.y) > 1' src/brogue/RogueMain.c
           grep -q 'attempt < 64' src/brogue/RogueMain.c
+          ! grep -q 'obrienPlaceSupplyItem(STAFF, STAFF_TUNNELING, 1, 3, anchor);' src/brogue/RogueMain.c
           ! grep -q 'obrienPlaceSupplyItem(STAFF, STAFF_BLINKING, 1, 10, anchor);' src/brogue/RogueMain.c
           ! grep -q 'obrienPlaceSupplyItem(STAFF, STAFF_LIGHTNING, 1, 20, anchor);' src/brogue/RogueMain.c
           ! grep -q 'obrienPlaceSupplyItem(STAFF, STAFF_FIRE, 1, 20, anchor);' src/brogue/RogueMain.c
