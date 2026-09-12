@@ -1,0 +1,33 @@
+name: "O'Brien Mod v0.2.25"
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'apply_obrien_mod*.py'
+      - '.github/workflows/obrien-mod-v0225.yml'
+      - 'OBRIEN_MOD.md'
+  workflow_dispatch:
+
+jobs:
+  linux-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev
+      - name: Apply O'Brien v0.2.25
+        run: python3 apply_obrien_mod_v0_2_25.py
+      - name: Verify v0.2.25 recharge pacing
+        run: |
+          grep -q 'OBRIEN_PRIMARY_STAFF_RECHARGE_DURATION 5000' src/brogue/Rogue.h
+          grep -q "v0.2.25: O'Brien's marked Fire/Lightning/Poison staffs keep +3 effect" src/brogue/Time.c
+          grep -q 'return OBRIEN_PRIMARY_STAFF_RECHARGE_DURATION;' src/brogue/Time.c
+          grep -q 'obrienAddMissionItemToPack(RING, RING_WISDOM, 3);' src/brogue/RogueMain.c
+          grep -q 'OBRIEN_PRIMARY_STAFF_CAPACITY 20' src/brogue/Rogue.h
+          grep -q 'OBRIEN_PRIMARY_STAFF_ENCHANTMENT 3' src/brogue/Rogue.h
+          grep -q "O'Brien Must Survive v0.2.25" src/brogue/RogueMain.c
+      - name: Compile
+        run: make -B -j3 bin/brogue
