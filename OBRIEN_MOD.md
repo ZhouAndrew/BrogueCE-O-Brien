@@ -1,12 +1,11 @@
-# O'Brien Must Survive v0.2.14
+# O'Brien Must Survive v0.2.15
 
 This repository includes a chained updater for **Brogue CE 1.15.1**. Apply the newest updater to a clean source tree; it runs all earlier O'Brien patches in order.
 
-## v0.2.14 design
+## v0.2.15 design
 
 - **O'Brien Must Survive is a fourth Variant**, alongside Brogue, Rapid Brogue and Bullet Brogue.
 - **Normal / Easy / Wizard remain Modes** and are independent of the selected Variant.
-- The old compile-time `-DOBRIEN_BROGUE` switch is no longer used.
 - O'Brien keeps normal Brogue fragility: the mod improves equipment, information, mobility and logistics rather than turning him into a tank.
 - Full tricorder analysis identifies item type, enchantment, runic state and curse state in the O'Brien variant.
 - Bashir is a finite-HP defensive medic, follows O'Brien, has permanent flight/levitation, and carries a finite 20/20 poison staff. He has no innate poison bolt, shield or haste ability.
@@ -20,22 +19,30 @@ O'Brien begins with the fixed Starfleet mission kit **already in his backpack**:
 - Poison staff: `20/20`
 - Blinking staff: `10/10`, capped at 20 spaces in this variant
 - Tunneling staff: `3/3`
-- Three separate `+12 Recharging` charms using Brogue's native charm mechanics
+- Three separate **Starfleet Emergency Power Cells**, each `20/20`
 - Ring of Regeneration: `+3`, automatically equipped
 - Ring of Wisdom: `+3`, automatically equipped
 
-The two mission rings occupy Brogue's normal two ring slots from turn zero. They are not permanently locked: the player can later replace them using normal Brogue equipment rules. Regeneration improves between-fight recovery without adding armor or extra maximum HP, while Wisdom supports the staff-heavy engineering loadout through Brogue's native ring mechanics.
+The two mission rings occupy Brogue's normal two ring slots from turn zero. They are not permanently locked: the player can later replace them using normal Brogue equipment rules.
 
-Tunneling is treated as a core engineering tool and no longer has to be collected from the first stairhead cache. The three Recharging charms are independent items and can recharge Tunneling under Brogue's normal native Recharging behavior. They are activated through Brogue's normal **Apply (`a`)** command. There is no custom `p`-key refill spell, and natural staff recharge speed remains unchanged.
+## Starfleet Emergency Power Cells
 
-The standard mission kit is no longer scattered around the first stairwell.
+The old three `+12 Recharging` charms have been replaced in the O'Brien variant by finite high-discharge emergency batteries.
+
+Each Power Cell stores **20 charge-units**. Applying a Cell lets O'Brien choose one staff and immediately transfer up to 20 units to it. Only the energy actually needed is consumed: a Fire staff at `13/20` uses 7 Cell units, a Blinking staff at `0/10` uses 10, and a Tunneling staff at `1/3` uses 2.
+
+This is intentionally a high-discharge / slow-recovery system. A Cell passively recovers only **1 charge-unit per 100 turns**, so a completely empty Cell requires about 2000 turns to return to `20/20`. This slow recovery is based only on elapsed player time: **Wisdom does not accelerate it, and Reaping does not feed it**. Wisdom continues to improve the normal recharge rate of staffs themselves.
+
+A **Scroll of Recharging** is treated as an external high-power recharge source. In the O'Brien variant it still performs Brogue's normal staff/charm recharge behavior, but it also fills every Starfleet Emergency Power Cell in the pack directly to `20/20`. Thus the player can occasionally find a genuine logistics reset in the dungeon without turning the Cells into self-sustaining reactors.
+
+In other Brogue variants, Recharging charms retain their original native behavior.
 
 ## Stairhead logistics
 
 Auxiliary supplies still materialize near designated stairwells. They remain physical floor items, so normal Brogue inventory choices still matter.
 
-- The initial stairhead cache keeps optional survival supplies but no longer duplicates Tunneling, the primary mission staffs, Recharging charms, or the two mission rings.
-- The full 3x3 area centered on the stair anchor is reserved as an item-free exit zone for O'Brien's DS9 cache. The player is not forced to step across supplied equipment just to leave the stairhead.
+- The initial stairhead cache keeps optional survival supplies but no longer duplicates Tunneling, the primary mission staffs, Power Cells, or the two mission rings.
+- The full 3x3 area centered on the stair anchor is reserved as an item-free exit zone. The player is not forced to step across supplied equipment just to leave the stairhead.
 - If a particular supply item cannot be placed outside that clear zone, it is omitted rather than violating the clear-lane rule.
 - Fire Immunity, Invisibility and Haste are no longer fixed DS9 cache supplies. They can still appear through normal Brogue random generation.
 - Periodic resupply occurs every 5 depths.
@@ -55,7 +62,7 @@ Start from a clean checkout and run:
 cd ~/Desktop/BrogueCE-O-Brien-src
 git fetch origin
 git reset --hard origin/master
-python3 apply_obrien_mod_v0_2_14.py
+python3 apply_obrien_mod_v0_2_15.py
 make -B
 ./brogue
 ```
