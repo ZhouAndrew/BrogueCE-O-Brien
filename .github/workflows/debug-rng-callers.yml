@@ -12,27 +12,52 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev
       - name: Apply O'Brien v0.2.23
         run: python3 apply_obrien_mod_v0_2_23.py
-      - name: Collect v0.2.23 source and RNG call sites
+      - name: Inject checkpoint source diagnostics
         run: |
-          mkdir -p artifact
-          {
-            echo '=== RNGCheck callers ==='
-            grep -R -n -C 8 'RNGCheck[[:space:]]*(' src/brogue || true
-            echo
-            echo '=== OOSCheck callers ==='
-            grep -R -n -C 8 'OOSCheck[[:space:]]*(' src/brogue || true
-            echo
-            echo '=== playerTurnEnded definition ==='
-            grep -n -A 430 -B 20 '^void playerTurnEnded' src/brogue/Time.c || true
-            echo
-            echo '=== RogueMain RNGCheck context ==='
-            grep -n -A 50 -B 50 'RNGCheck();' src/brogue/RogueMain.c || true
-          } > artifact/rng-callers.txt
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new):
+              p = Path(path)
+              s = p.read_text()
+              if old not in s:
+                  raise SystemExit(f'anchor not found in {path}: {old[:60]!r}')
+              p.write_text(s.replace(old, new, 1))
+
+          replace('src/brogue/RogueMain.c',
+                  '    RNGCheck();\n    flushBufferToFile();',
+                  '    printf("RNG_TRACE source=START_LEVEL turn=%li depth=%i loc=%li\\n", rogue.playerTurnNumber, rogue.depthLevel, recordingLocation);\n    fflush(stdout);\n    RNGCheck();\n    flushBufferToFile();')
+
+          replace('src/brogue/Time.c',
+                  '    RNGCheck();\n    handleHealthAlerts();',
+                  '    printf("RNG_TRACE source=TURN_END turn=%li depth=%i loc=%li hp=%i\\n", rogue.playerTurnNumber, rogue.depthLevel, recordingLocation, player.currentHP);\n    fflush(stdout);\n    RNGCheck();\n    handleHealthAlerts();')
+
+          replace('src/brogue/Recordings.c',
+                  '    if (rogue.playbackMode) {\n        eventType = recallChar();\n        recordedNumber = recallNumber(numberOfBytes);',
+                  '    if (rogue.playbackMode) {\n        printf("RNG_TRACE source=OOS_EXPECT turn=%li depth=%i loc=%li expected=%lu bytes=%i\\n", rogue.playerTurnNumber, rogue.depthLevel, recordingLocation, x, numberOfBytes);\n        fflush(stdout);\n        eventType = recallChar();\n        recordedNumber = recallNumber(numberOfBytes);\n        printf("RNG_TRACE source=OOS_READ turn=%li depth=%i event=%u recorded=%lu loc=%li\\n", rogue.playerTurnNumber, rogue.depthLevel, (unsigned) eventType, recordedNumber, recordingLocation);\n        fflush(stdout);')
+
+          # Log bytes entering recallEvent, including a stray RNG_CHECK being read as input.
+          anchor = '        c = recallChar();\n        event->eventType = c;'
+          repl = '        c = recallChar();\n        printf("RNG_TRACE source=INPUT_READ turn=%li depth=%i event=%u loc=%li\\n", rogue.playerTurnNumber, rogue.depthLevel, (unsigned) c, recordingLocation);\n        fflush(stdout);\n        event->eventType = c;'
+          replace('src/brogue/Recordings.c', anchor, repl)
+          PY
+      - name: Compile diagnostic build
+        run: make -B -j3 bin/brogue
+      - name: Package diagnostic build and source
+        run: |
+          mkdir -p artifact/bin
+          cp bin/brogue artifact/bin/brogue-v023-rngtrace
+          cp -a bin/assets artifact/bin/
+          cp brogue artifact/
           cp -a src/brogue artifact/brogue-v023-source
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: rng-callers-v023-source
+          name: rngtrace-v023
           path: artifact
