@@ -124,10 +124,12 @@ repl(
     'record recalled legacy event',
 )
 
-# Enrich the final line so a CI run can prove what actually happened.
+# Enrich the final line so a CI run can prove what actually happened. Match
+# only the stable tail of the C format string so Python escape depth cannot
+# make this anchor brittle again.
 repl(
-    '''           "MIGRATION_FINAL output=%s turn=%li depth=%i deepest=%i hp=%i/%i ended=%i oos=%i bytes=%lu legacyRuns=%lu insertedRests=%lu sourceLoc=%li sourceLen=%lu\\n",''',
-    '''           "MIGRATION_FINAL output=%s turn=%li depth=%i deepest=%i hp=%i/%i ended=%i oos=%i bytes=%lu events=%lu generatedChecks=%lu legacyRuns=%lu insertedRests=%lu sourceLoc=%li sourceLen=%lu\\n",''',
+    r'bytes=%lu legacyRuns=%lu insertedRests=%lu sourceLoc=%li sourceLen=%lu\n',
+    r'bytes=%lu events=%lu generatedChecks=%lu legacyRuns=%lu insertedRests=%lu sourceLoc=%li sourceLen=%lu\n',
     'final diagnostic format',
 )
 repl(
