@@ -1,0 +1,55 @@
+name: Forensic sequential OBrien upgrade builds
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+    paths:
+      - '.github/workflows/forensic-sequential-upgrade.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        sequence:
+          - direct23
+          - v22_then_v23
+          - v20_v21_v22_v23
+          - v14_to_v23
+          - v20_to_v28
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev
+      - name: Apply historical sequence
+        shell: bash
+        run: |
+          set -eux
+          case '${{ matrix.sequence }}' in
+            direct23)
+              python3 apply_obrien_mod_v0_2_23.py ;;
+            v22_then_v23)
+              python3 apply_obrien_mod_v0_2_22.py
+              python3 apply_obrien_mod_v0_2_23.py ;;
+            v20_v21_v22_v23)
+              for v in 20 21 22 23; do python3 apply_obrien_mod_v0_2_${v}.py; done ;;
+            v14_to_v23)
+              for v in 14 15 16 17 18 19 20 21 22 23; do python3 apply_obrien_mod_v0_2_${v}.py; done ;;
+            v20_to_v28)
+              for v in 20 21 22 23 24 25 26 27 28; do python3 apply_obrien_mod_v0_2_${v}.py; done ;;
+          esac
+      - name: Compile
+        run: make -B -j3 bin/brogue
+      - name: Package
+        run: |
+          mkdir -p artifact/${{ matrix.sequence }}
+          cp bin/brogue artifact/${{ matrix.sequence }}/brogue
+          cp -a bin/assets artifact/${{ matrix.sequence }}/
+          cp src/brogue/Time.c src/brogue/Recordings.c src/brogue/RogueMain.c artifact/${{ matrix.sequence }}/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: seq-${{ matrix.sequence }}
+          path: artifact/${{ matrix.sequence }}
