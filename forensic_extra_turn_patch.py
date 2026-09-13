@@ -22,8 +22,8 @@ static void recordChar(unsigned char c) {''',
     RECORDING_SEEK_MODE_DEPTH
 };
 
-/* FORENSIC_EXTRA_TURN: one-byte logical pushback so a stray RNG_CHECK can be
- * handed back to playerTurnEnded()->RNGCheck()->OOSCheck(). */
+/* FORENSIC_TRANSITION: one-byte logical pushback so a stray RNG_CHECK can be
+ * handed back to startLevel()->RNGCheck()->OOSCheck(). */
 static int forensicPushedChar = -1;
 
 static void recordChar(unsigned char c) {''',
@@ -87,14 +87,14 @@ replace_once(
 '''            case RNG_CHECK:
                 if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {
                     short savedRNG = rogue.RNG;
-                    printf("FORENSIC stray RNG_CHECK -> full playerTurnEnded before: turn=%li depth=%i hp=%i loc=%li\\n",
+                    printf("FORENSIC stray RNG_CHECK -> forced descent before: turn=%li depth=%i hp=%i loc=%li\\n",
                            rogue.playerTurnNumber, rogue.depthLevel, player.currentHP, recordingLocation - 1);
                     fflush(stdout);
                     forensicPushBackChar(c);
                     rogue.RNG = RNG_SUBSTANTIVE;
-                    playerTurnEnded();
+                    useStairs(1);
                     rogue.RNG = savedRNG;
-                    printf("FORENSIC after extra playerTurnEnded: turn=%li depth=%i hp=%i ended=%i oos=%i loc=%li\\n",
+                    printf("FORENSIC after forced descent: turn=%li depth=%i hp=%i ended=%i oos=%i loc=%li\\n",
                            rogue.playerTurnNumber, rogue.depthLevel, player.currentHP,
                            rogue.gameHasEnded, rogue.playbackOOS, recordingLocation);
                     fflush(stdout);
@@ -140,4 +140,4 @@ replace_once(
 'OOS')
 
 p.write_text(s, encoding='utf-8')
-print('forensic extra-turn patch applied')
+print('forensic forced-transition patch applied')
