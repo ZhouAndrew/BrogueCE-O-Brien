@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply O'Brien Must Survive v0.2.28 to a clean Brogue CE 1.15.1 tree.
+"""Apply O'Brien Must Survive v0.2.28 to a Brogue CE 1.15.1 tree.
 
 v0.2.28 makes O'Brien recordings self-describing. Brogue CE's 36-byte recording
 header historically stored only the game mode, not the selected variant. That is
@@ -10,6 +10,11 @@ The fix keeps the header length unchanged. Byte 15 now contains a tagged packed
 value: bit 7 marks the new format, bits 4..6 store gameVariant, and bits 0..3
 store rogue.mode. Legacy untagged recordings remain readable with the currently
 selected variant. A companion migration utility can tag old O'Brien saves.
+
+This updater is intentionally safe in both supported workflows:
+- a clean Brogue CE source tree, where it applies the historical O'Brien patches;
+- an existing working tree that already has v0.2.27 applied, where it skips
+  replaying the historical patch chain and applies only the v0.2.28 delta.
 """
 
 from pathlib import Path
@@ -21,7 +26,31 @@ PREVIOUS_PATCH = ROOT / "apply_obrien_mod_v0_2_27.py"
 if not PREVIOUS_PATCH.exists():
     raise SystemExit("Missing apply_obrien_mod_v0_2_27.py next to this updater.")
 
-runpy.run_path(str(PREVIOUS_PATCH), run_name="__main__")
+
+def source_has_v027_or_later():
+    """Return True only when the tree already contains the important v0.2.27 markers."""
+    required = {
+        "src/brogue/RogueMain.c": ("O'Brien Must Survive v0.2.27", "O'Brien Must Survive v0.2.28"),
+        "src/brogue/Monsters.c": ("obrienSecuritySuspended", "MB_TELEPATHICALLY_REVEALED"),
+        "src/brogue/IO.c": ("Toggle Security Hologram",),
+    }
+    for rel, markers in required.items():
+        path = ROOT / rel
+        if not path.exists():
+            return False
+        text = path.read_text(encoding="utf-8")
+        if rel.endswith("RogueMain.c"):
+            if not any(marker in text for marker in markers):
+                return False
+        elif not all(marker in text for marker in markers):
+            return False
+    return True
+
+
+if source_has_v027_or_later():
+    print("Detected O'Brien v0.2.27+ already applied; skipping historical patch replay.")
+else:
+    runpy.run_path(str(PREVIOUS_PATCH), run_name="__main__")
 
 
 def replace_once(rel, old, new, marker=None):
@@ -115,4 +144,6 @@ print("- recordings/saves now persist the selected variant in header byte 15")
 print("- header stays 36 bytes; seed/turn/depth/event offsets are unchanged")
 print("- legacy untagged recordings remain readable using the selected variant")
 print("- use repair_legacy_obrien_save.py once for old O'Brien .broguesave/.broguerec files")
-print("Build normally with: make -B")
+print("Build with: make -B -j3 bin/brogue")
+print("Run from the source-tree root with: ./brogue")
+print("Do NOT run ./bin/brogue from the repository root; it cannot resolve bin/assets/tiles.png there.")
