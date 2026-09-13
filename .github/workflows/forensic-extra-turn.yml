@@ -17,13 +17,11 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y libsdl2-dev libsdl2-image-dev
-      - name: Reproduce sequential OBrien upgrades
+      - name: Reproduce partial dirty upgrade
         run: |
           python3 apply_obrien_mod_v0_2_23.py
-          python3 apply_obrien_mod_v0_2_24.py
-          python3 apply_obrien_mod_v0_2_25.py
-          python3 apply_obrien_mod_v0_2_26.py
-          python3 apply_obrien_mod_v0_2_27.py
+          python3 apply_obrien_mod_v0_2_24.py || true
+          git diff -- src/brogue/RogueMain.c src/brogue/Time.c src/brogue/Items.c src/brogue/Monsters.c
       - name: Inject forensic replay
         run: python3 forensic_extra_turn_patch.py
       - name: Compile
@@ -34,8 +32,9 @@ jobs:
           cp bin/brogue artifact/bin/brogue-forensic-extra-turn
           cp -a bin/assets artifact/bin/
           cp brogue artifact/
+          cp src/brogue/RogueMain.c artifact/RogueMain-partial.c
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: forensic-dirty-upgrade-v027
+          name: forensic-partial-v024
           path: artifact
