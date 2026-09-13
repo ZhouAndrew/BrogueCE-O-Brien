@@ -1,0 +1,22 @@
+name: Forensic export 9de patch scripts
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+    paths:
+      - '.github/workflows/forensic-export-9de-patches.yml'
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 9de7b3b3cf79c08e0decf5204616abbb2429fb17
+      - name: Package historical patch scripts
+        run: |
+          mkdir -p artifact
+          cp apply_obrien_mod*.py repair_legacy_obrien_save.py artifact/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forensic-9de-patch-scripts
+          path: artifact
