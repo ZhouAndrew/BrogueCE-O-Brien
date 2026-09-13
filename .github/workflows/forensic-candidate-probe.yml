@@ -1,0 +1,34 @@
+name: Forensic candidate action probe
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'forensic_candidate_probe.py'
+      - '.github/workflows/forensic-candidate-probe.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev
+      - name: Apply OBrien v0.2.23
+        run: python3 apply_obrien_mod_v0_2_23.py
+      - name: Inject candidate probe
+        run: python3 forensic_candidate_probe.py
+      - name: Compile
+        run: make -B -j3 bin/brogue
+      - name: Package
+        run: |
+          mkdir -p artifact
+          cp bin/brogue artifact/brogue-candidate-v023
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: forensic-candidate-v023
+          path: artifact
