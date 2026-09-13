@@ -1,0 +1,33 @@
+name: Forensic null re-encoder
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+    paths:
+      - '.github/workflows/forensic-reencode-null.yml'
+      - 'forensic_reencode_legacy_save.py'
+      - 'forensic_reencode_event_source_fix.py'
+      - 'forensic_migration_nullconsole.py'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply OBrien v0.2.28
+        run: python3 apply_obrien_mod_v0_2_28.py
+      - name: Inject re-encoder
+        run: |
+          python3 forensic_reencode_legacy_save.py
+          python3 forensic_reencode_event_source_fix.py
+          python3 forensic_migration_nullconsole.py
+      - name: Compile null-console binary
+        run: make -B -j3 GRAPHICS=NO bin/brogue
+      - name: Package
+        run: |
+          mkdir -p artifact
+          cp bin/brogue artifact/brogue-reencode-v028-null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forensic-reencode-v028-null
+          path: artifact
