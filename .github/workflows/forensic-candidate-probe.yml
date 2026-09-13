@@ -4,6 +4,7 @@ on:
     branches: [ master ]
     paths:
       - 'forensic_candidate_probe.py'
+      - 'forensic_turnloop_probe.py'
       - '.github/workflows/forensic-candidate-probe.yml'
   workflow_dispatch:
 
@@ -19,8 +20,10 @@ jobs:
           sudo apt install -y libsdl2-dev libsdl2-image-dev
       - name: Apply OBrien v0.2.23
         run: python3 apply_obrien_mod_v0_2_23.py
-      - name: Inject candidate probe
-        run: python3 forensic_candidate_probe.py
+      - name: Inject candidate and turn-loop probes
+        run: |
+          python3 forensic_candidate_probe.py
+          python3 forensic_turnloop_probe.py
       - name: Compile
         run: make -B -j3 bin/brogue
       - name: Package
@@ -29,7 +32,7 @@ jobs:
           cp bin/brogue artifact/brogue-candidate-v023
           cp -a src artifact/src
           cp apply_obrien_mod*.py artifact/
-          cp forensic_candidate_probe.py artifact/
+          cp forensic_candidate_probe.py forensic_turnloop_probe.py artifact/
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
