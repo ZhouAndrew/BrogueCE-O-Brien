@@ -1,0 +1,22 @@
+name: Forensic v23 stray state null
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+    paths:
+      - '.github/workflows/forensic-state-v23-null.yml'
+      - 'forensic_extra_turn_patch.py'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 apply_obrien_mod_v0_2_23.py
+      - run: python3 forensic_extra_turn_patch.py
+      - run: make -B -j3 GRAPHICS=NO bin/brogue
+      - run: mkdir -p artifact && cp bin/brogue artifact/brogue-v023-state
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forensic-v023-state-null
+          path: artifact
