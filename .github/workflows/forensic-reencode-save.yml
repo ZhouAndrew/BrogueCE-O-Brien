@@ -5,6 +5,7 @@ on:
     branches: [ master ]
     paths:
       - 'forensic_reencode_legacy_save.py'
+      - 'forensic_migration_nullconsole.py'
       - '.github/workflows/forensic-reencode-save.yml'
 
 jobs:
@@ -19,7 +20,9 @@ jobs:
       - name: Apply clean OBrien v0.2.28
         run: python3 apply_obrien_mod_v0_2_28.py
       - name: Inject one-shot re-encoder
-        run: python3 forensic_reencode_legacy_save.py
+        run: |
+          python3 forensic_reencode_legacy_save.py
+          python3 forensic_migration_nullconsole.py
       - name: Compile
         run: make -B -j3 bin/brogue
       - name: Package
@@ -28,6 +31,7 @@ jobs:
           cp bin/brogue artifact/bin/brogue-reencode-v028
           cp -a bin/assets artifact/bin/
           cp src/brogue/Recordings.c artifact/Recordings.reencode.c
+          cp src/platform/main.c artifact/main.reencode.c
       - uses: actions/upload-artifact@v4
         with:
           name: forensic-reencode-v028
