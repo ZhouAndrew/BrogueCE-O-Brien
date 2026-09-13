@@ -1,4 +1,4 @@
-name: "O'Brien Mod v0.2.28"
+name: "O'Brien Mod v0.2.29 long-save compatibility"
 on:
   push:
     branches: [ master ]
@@ -13,8 +13,6 @@ on:
       - 'apply_obrien_mod*.py'
       - 'repair_legacy_obrien_save.py'
       - '.github/workflows/obrien-mod-v0228.yml'
-      - 'changes/obrien-v0.2.28.md'
-      - 'changes/obrien-v0.2.28-updater-hotfix.md'
   workflow_dispatch:
 
 jobs:
@@ -27,14 +25,13 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y libsdl2-dev libsdl2-image-dev
-      - name: Apply O'Brien v0.2.28 from clean tree
-        run: python3 apply_obrien_mod_v0_2_28.py
-      - name: Verify recording variant metadata patch
+      - name: Apply O'Brien v0.2.29 from clean tree
+        run: python3 apply_obrien_mod_v0_2_29.py
+      - name: Verify long-save compatibility patch
         run: |
           grep -q 'RECORDING_VARIANT_TAG' src/brogue/Recordings.c
-          grep -q 'gameVariant & RECORDING_VARIANT_MASK' src/brogue/Recordings.c
-          grep -q 'modeVariantByte & RECORDING_VARIANT_TAG' src/brogue/Recordings.c
-          grep -q "O'Brien Must Survive v0.2.28" src/brogue/RogueMain.c
+          grep -q 'v0.2.29 long-save compatibility' src/brogue/Recordings.c
+          grep -q "O'Brien Must Survive v0.2.29" src/brogue/RogueMain.c
       - name: Test legacy save migration utility
         run: |
           python3 - <<'PY'
@@ -86,7 +83,7 @@ jobs:
       - name: Upload patched Linux build
         uses: actions/upload-artifact@v4
         with:
-          name: obrien-v028-linux-test
+          name: obrien-v029-linux-test
           path: artifact
           if-no-files-found: error
 
@@ -101,13 +98,11 @@ jobs:
           sudo apt install -y libsdl2-dev libsdl2-image-dev
       - name: First apply v0.2.27
         run: python3 apply_obrien_mod_v0_2_27.py
-      - name: Upgrade same working tree to v0.2.28
-        run: |
-          python3 apply_obrien_mod_v0_2_28.py | tee /tmp/v028-upgrade.log
-          grep -q "Detected O'Brien v0.2.27+ already applied; skipping historical patch replay." /tmp/v028-upgrade.log
+      - name: Upgrade same working tree to v0.2.29
+        run: python3 apply_obrien_mod_v0_2_29.py
       - name: Verify upgraded tree
         run: |
-          grep -q 'RECORDING_VARIANT_TAG' src/brogue/Recordings.c
-          grep -q "O'Brien Must Survive v0.2.28" src/brogue/RogueMain.c
+          grep -q 'v0.2.29 long-save compatibility' src/brogue/Recordings.c
+          grep -q "O'Brien Must Survive v0.2.29" src/brogue/RogueMain.c
       - name: Compile upgraded tree
         run: make -B -j3 bin/brogue
