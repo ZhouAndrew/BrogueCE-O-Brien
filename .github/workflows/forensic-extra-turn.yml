@@ -4,6 +4,7 @@ on:
     branches: [ master ]
     paths:
       - '.github/workflows/forensic-extra-turn.yml'
+      - 'forensic_extra_turn_patch.py'
   workflow_dispatch:
 
 jobs:
@@ -16,147 +17,10 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y libsdl2-dev libsdl2-image-dev
-      - name: Apply O'Brien v0.2.23
+      - name: Apply OBrien v0.2.23
         run: python3 apply_obrien_mod_v0_2_23.py
-      - name: Inject forensic extra-turn replay
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('src/brogue/Recordings.c')
-          s = p.read_text()
-
-          anchor = '''enum recordingSeekModes {
-    RECORDING_SEEK_MODE_TURN,
-    RECORDING_SEEK_MODE_DEPTH
-};
-
-static void recordChar(unsigned char c) {'''
-          repl = '''enum recordingSeekModes {
-    RECORDING_SEEK_MODE_TURN,
-    RECORDING_SEEK_MODE_DEPTH
-};
-
-/* FORENSIC_EXTRA_TURN: one-byte logical pushback so a stray RNG_CHECK can be
- * handed back to playerTurnEnded()->RNGCheck()->OOSCheck(). */
-static int forensicPushedChar = -1;
-
-static void recordChar(unsigned char c) {'''
-          if anchor not in s: raise SystemExit('enum anchor missing')
-          s = s.replace(anchor, repl, 1)
-
-          anchor = '''static unsigned char recallChar() {
-    unsigned char c;
-    if (recordingLocation > lengthOfPlaybackFile) {
-        return END_OF_RECORDING;
-    }
-    c = inputRecordBuffer[locationInRecordingBuffer++];
-    recordingLocation++;
-    if (locationInRecordingBuffer >= INPUT_RECORD_BUFFER) {
-        fillBufferFromFile();
-    }
-    return c;
-}
-'''
-          repl = '''static unsigned char recallChar() {
-    unsigned char c;
-    if (forensicPushedChar >= 0) {
-        c = (unsigned char) forensicPushedChar;
-        forensicPushedChar = -1;
-        recordingLocation++;
-        return c;
-    }
-    if (recordingLocation > lengthOfPlaybackFile) {
-        return END_OF_RECORDING;
-    }
-    c = inputRecordBuffer[locationInRecordingBuffer++];
-    recordingLocation++;
-    if (locationInRecordingBuffer >= INPUT_RECORD_BUFFER) {
-        fillBufferFromFile();
-    }
-    return c;
-}
-
-static void forensicPushBackChar(unsigned char c) {
-    if (forensicPushedChar >= 0) {
-        printf("FORENSIC ERROR double pushback at loc=%li\\n", recordingLocation);
-        playbackPanic();
-        return;
-    }
-    forensicPushedChar = c;
-    if (recordingLocation > 0) recordingLocation--;
-}
-'''
-          if anchor not in s: raise SystemExit('recallChar anchor missing')
-          s = s.replace(anchor, repl, 1)
-
-          anchor = '''            case RNG_CHECK:
-            case END_OF_RECORDING:
-            case EVENT_ERROR:
-            default:
-                message("Unrecognized event type in playback.", REQUIRE_ACKNOWLEDGMENT);
-                printf("Unrecognized event type in playback: event ID %i", c);
-                tryAgain = true;
-                playbackPanic();
-                break;'''
-          repl = '''            case RNG_CHECK:
-                if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {
-                    short savedRNG = rogue.RNG;
-                    printf("FORENSIC stray RNG_CHECK -> full playerTurnEnded before: turn=%li depth=%i hp=%i loc=%li\\n",
-                           rogue.playerTurnNumber, rogue.depthLevel, player.currentHP, recordingLocation - 1);
-                    fflush(stdout);
-                    forensicPushBackChar(c);
-                    rogue.RNG = RNG_SUBSTANTIVE;
-                    playerTurnEnded();
-                    rogue.RNG = savedRNG;
-                    printf("FORENSIC after extra playerTurnEnded: turn=%li depth=%i hp=%i ended=%i oos=%i loc=%li\\n",
-                           rogue.playerTurnNumber, rogue.depthLevel, player.currentHP,
-                           rogue.gameHasEnded, rogue.playbackOOS, recordingLocation);
-                    fflush(stdout);
-                    tryAgain = true;
-                    break;
-                }
-                // fall through for non-O'Brien variants
-            case END_OF_RECORDING:
-            case EVENT_ERROR:
-            default:
-                message("Unrecognized event type in playback.", REQUIRE_ACKNOWLEDGMENT);
-                printf("Unrecognized event type in playback: event ID %i", c);
-                tryAgain = true;
-                playbackPanic();
-                break;'''
-          if anchor not in s: raise SystemExit('recallEvent RNG anchor missing')
-          s = s.replace(anchor, repl, 1)
-
-          anchor = '''    locationInRecordingBuffer   = 0;
-    positionInPlaybackFile      = 0;
-    recordingLocation           = 0;
-    maxLevelChanges             = 0;'''
-          repl = '''    locationInRecordingBuffer   = 0;
-    positionInPlaybackFile      = 0;
-    recordingLocation           = 0;
-    forensicPushedChar          = -1;
-    maxLevelChanges             = 0;'''
-          if anchor not in s: raise SystemExit('init reset anchor missing')
-          s = s.replace(anchor, repl, 1)
-
-          # concise checkpoint trace
-          anchor = '''    if (rogue.playbackMode) {
-        eventType = recallChar();
-        recordedNumber = recallNumber(numberOfBytes);'''
-          repl = '''    if (rogue.playbackMode) {
-        printf("FORENSIC OOS expect turn=%li depth=%i loc=%li value=%lu\\n",
-               rogue.playerTurnNumber, rogue.depthLevel, recordingLocation, x);
-        fflush(stdout);
-        eventType = recallChar();
-        recordedNumber = recallNumber(numberOfBytes);
-        printf("FORENSIC OOS read event=%u recorded=%lu loc=%li\\n",
-               (unsigned) eventType, recordedNumber, recordingLocation);
-        fflush(stdout);'''
-          if anchor not in s: raise SystemExit('OOS anchor missing')
-          s = s.replace(anchor, repl, 1)
-
-          p.write_text(s)
-          PY
+      - name: Inject forensic replay
+        run: python3 forensic_extra_turn_patch.py
       - name: Compile
         run: make -B -j3 bin/brogue
       - name: Package
