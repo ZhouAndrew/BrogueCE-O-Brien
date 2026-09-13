@@ -1,0 +1,52 @@
+name: Forensic exact 9de7b3b builds
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+    paths:
+      - '.github/workflows/forensic-exact-9de7b3b.yml'
+
+jobs:
+  clean-v28:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 9de7b3b3cf79c08e0decf5204616abbb2429fb17
+      - name: Apply historical v0.2.28 from clean tree
+        run: python3 apply_obrien_mod_v0_2_28.py
+      - name: Compile exact null-console candidate
+        run: make -B -j3 GRAPHICS=NO bin/brogue
+      - name: Package
+        run: |
+          mkdir -p artifact
+          cp bin/brogue artifact/brogue-9de7b3b-clean-v28
+          cp src/brogue/Recordings.c artifact/Recordings.c
+          cp src/brogue/RogueMain.c artifact/RogueMain.c
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exact-9de7b3b-clean-v28
+          path: artifact
+
+  v27-then-v28:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 9de7b3b3cf79c08e0decf5204616abbb2429fb17
+      - name: Apply historical v0.2.27 first
+        run: python3 apply_obrien_mod_v0_2_27.py
+      - name: Upgrade same historical working tree to v0.2.28
+        run: python3 apply_obrien_mod_v0_2_28.py
+      - name: Compile exact dirty-upgrade null-console candidate
+        run: make -B -j3 GRAPHICS=NO bin/brogue
+      - name: Package
+        run: |
+          mkdir -p artifact
+          cp bin/brogue artifact/brogue-9de7b3b-v27-then-v28
+          cp src/brogue/Recordings.c artifact/Recordings.c
+          cp src/brogue/RogueMain.c artifact/RogueMain.c
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exact-9de7b3b-v27-then-v28
+          path: artifact
