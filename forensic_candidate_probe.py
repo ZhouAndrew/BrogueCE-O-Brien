@@ -18,6 +18,7 @@ new = r'''            case RNG_CHECK:
                     && rogue.playerTurnNumber == 3
                     && recordingLocation == 54) {
                     const char *action = getenv("OBRIEN_FORENSIC_ACTION");
+                    item *it;
                     if (!action) action = "turn";
 
                     // recallEvent has consumed only the RNG_CHECK event byte. Put
@@ -28,13 +29,26 @@ new = r'''            case RNG_CHECK:
                         recordingLocation--;
                     }
 
-                    printf("CANDIDATE begin action=%s turn=%li depth=%i loc=%li hp=%i/%i pos=%i,%i ticks=%i nutrition=%i justRested=%i justSearched=%i auto=%i cautious=%i disturbed=%i awareness=%i\n",
+                    printf("CANDIDATE begin action=%s turn=%li depth=%i loc=%li hp=%i/%i pos=%i,%i up=%i,%i down=%i,%i ticks=%i nutrition=%i donning=%i justRested=%i justSearched=%i auto=%i cautious=%i disturbed=%i awareness=%i cellFlags=%lu dungeon=%i liquid=%i surface=%i gas=%i\\n",
                            action, rogue.playerTurnNumber, rogue.depthLevel,
                            recordingLocation, player.currentHP, player.info.maxHP,
-                           player.loc.x, player.loc.y, player.ticksUntilTurn,
-                           player.status[STATUS_NUTRITION], rogue.justRested,
+                           player.loc.x, player.loc.y,
+                           rogue.upLoc.x, rogue.upLoc.y, rogue.downLoc.x, rogue.downLoc.y,
+                           player.ticksUntilTurn, player.status[STATUS_NUTRITION],
+                           player.status[STATUS_DONNING], rogue.justRested,
                            rogue.justSearched, rogue.automationActive,
-                           rogue.cautiousMode, rogue.disturbed, rogue.awarenessBonus);
+                           rogue.cautiousMode, rogue.disturbed, rogue.awarenessBonus,
+                           pmapAt(player.loc)->flags,
+                           pmapAt(player.loc)->layers[DUNGEON],
+                           pmapAt(player.loc)->layers[LIQUID],
+                           pmapAt(player.loc)->layers[SURFACE],
+                           pmapAt(player.loc)->layers[GAS]);
+                    for (it = packItems->nextItem; it != NULL; it = it->nextItem) {
+                        printf("CANDIDATE pack letter=%c category=%u kind=%i flags=%lu charges=%i enchant1=%i enchant2=%i qty=%i equipped=%i\\n",
+                               it->inventoryLetter, (unsigned) it->category, it->kind,
+                               it->flags, it->charges, it->enchant1, it->enchant2,
+                               it->quantity, !!(it->flags & ITEM_EQUIPPED));
+                    }
                     fflush(stdout);
 
                     if (!strcmp(action, "turn")) {
@@ -73,6 +87,10 @@ new = r'''            case RNG_CHECK:
                         search(160);
                         rogue.justSearched = true;
                         playerTurnEnded();
+                    } else if (!strcmp(action, "stairsdown")) {
+                        useStairs(1);
+                    } else if (!strcmp(action, "stairsup")) {
+                        useStairs(-1);
                     } else if (!strncmp(action, "move", 4) && strlen(action) == 5
                                && action[4] >= '0' && action[4] <= '7') {
                         playerMoves(action[4] - '0');
@@ -80,10 +98,10 @@ new = r'''            case RNG_CHECK:
                                && action[3] >= '0' && action[3] <= '7') {
                         playerRuns(action[3] - '0');
                     } else {
-                        printf("CANDIDATE unknown action=%s\n", action);
+                        printf("CANDIDATE unknown action=%s\\n", action);
                     }
 
-                    printf("CANDIDATE end action=%s turn=%li depth=%i loc=%li hp=%i/%i pos=%i,%i ended=%i oos=%i\n",
+                    printf("CANDIDATE end action=%s turn=%li depth=%i loc=%li hp=%i/%i pos=%i,%i ended=%i oos=%i\\n",
                            action, rogue.playerTurnNumber, rogue.depthLevel,
                            recordingLocation, player.currentHP, player.info.maxHP,
                            player.loc.x, player.loc.y, rogue.gameHasEnded,
