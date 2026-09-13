@@ -1,0 +1,29 @@
+name: Forensic v029 long-save null
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+    paths:
+      - '.github/workflows/forensic-v029-null.yml'
+      - 'apply_obrien_mod_v0_2_29.py'
+      - 'forensic_history_outcome.py'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply OBrien v0.2.29 compatibility
+        run: python3 apply_obrien_mod_v0_2_29.py
+      - name: Add terminal replay outcome diagnostics
+        run: python3 forensic_history_outcome.py
+      - name: Compile null console
+        run: make -B -j3 GRAPHICS=NO bin/brogue
+      - name: Package
+        run: |
+          mkdir -p artifact
+          cp bin/brogue artifact/brogue-v029-null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forensic-v029-null
+          path: artifact
