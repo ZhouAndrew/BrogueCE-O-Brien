@@ -30,7 +30,7 @@ jobs:
       - name: Verify long-save compatibility patch
         run: |
           grep -q 'RECORDING_VARIANT_TAG' src/brogue/Recordings.c
-          grep -q 'v0.2.29 long-save compatibility' src/brogue/Recordings.c
+          grep -q 'OBRIEN_V029_RNG_RELOCK' src/brogue/Recordings.c
           grep -q "O'Brien Must Survive v0.2.29" src/brogue/RogueMain.c
       - name: Test legacy save migration utility
         run: |
@@ -102,7 +102,7 @@ jobs:
         run: python3 apply_obrien_mod_v0_2_29.py
       - name: Verify upgraded tree
         run: |
-          grep -q 'v0.2.29 long-save compatibility' src/brogue/Recordings.c
+          grep -q 'OBRIEN_V029_RNG_RELOCK' src/brogue/Recordings.c
           grep -q "O'Brien Must Survive v0.2.29" src/brogue/RogueMain.c
       - name: Compile upgraded tree
         run: make -B -j3 bin/brogue
