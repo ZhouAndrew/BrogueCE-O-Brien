@@ -65,8 +65,8 @@ replace_once(
 static void forensicPushBackChar(unsigned char c) {
     if (forensicPushedChar >= 0) {
         printf("FORENSIC ERROR double pushback at loc=%li\\n", recordingLocation);
-        playbackPanic();
-        return;
+        fflush(stdout);
+        exit(99);
     }
     forensicPushedChar = c;
     if (recordingLocation > 0) recordingLocation--;
