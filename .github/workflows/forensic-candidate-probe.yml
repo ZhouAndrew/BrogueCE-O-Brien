@@ -27,8 +27,11 @@ jobs:
         run: |
           mkdir -p artifact
           cp bin/brogue artifact/brogue-candidate-v023
+          cp -a src artifact/src
+          cp apply_obrien_mod*.py artifact/
+          cp forensic_candidate_probe.py artifact/
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: forensic-candidate-v023
+          name: forensic-candidate-v023-source
           path: artifact
