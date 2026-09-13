@@ -1,0 +1,38 @@
+name: Historical O'Brien save salvage matrix
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - '.github/workflows/save-salvage-matrix.yml'
+  workflow_dispatch:
+
+jobs:
+  build-history:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev
+      - name: Build historical O'Brien versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/obrien-history
+          for v in 20 21 22 23 24 25 26 27 28; do
+            echo "===== building v0.2.$v ====="
+            git reset --hard HEAD
+            git clean -fdx -e /tmp || true
+            python3 "apply_obrien_mod_v0_2_${v}.py"
+            make -B -j3 bin/brogue
+            cp bin/brogue "/tmp/obrien-history/brogue-v0.2.$v"
+          done
+          cp -a bin/assets /tmp/obrien-history/assets
+      - name: Upload historical binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: obrien-history-v020-v028
+          path: /tmp/obrien-history
+          if-no-files-found: error
