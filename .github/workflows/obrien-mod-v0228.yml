@@ -1,0 +1,57 @@
+name: "O'Brien Mod v0.2.28"
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'apply_obrien_mod*.py'
+      - 'repair_legacy_obrien_save.py'
+      - '.github/workflows/obrien-mod-v0228.yml'
+      - 'changes/obrien-v0.2.28.md'
+  pull_request:
+    paths:
+      - 'apply_obrien_mod*.py'
+      - 'repair_legacy_obrien_save.py'
+      - '.github/workflows/obrien-mod-v0228.yml'
+      - 'changes/obrien-v0.2.28.md'
+  workflow_dispatch:
+
+jobs:
+  linux-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev
+      - name: Apply O'Brien v0.2.28
+        run: python3 apply_obrien_mod_v0_2_28.py
+      - name: Verify recording variant metadata patch
+        run: |
+          grep -q 'RECORDING_VARIANT_TAG' src/brogue/Recordings.c
+          grep -q 'gameVariant & RECORDING_VARIANT_MASK' src/brogue/Recordings.c
+          grep -q 'modeVariantByte & RECORDING_VARIANT_TAG' src/brogue/Recordings.c
+          grep -q "O'Brien Must Survive v0.2.28" src/brogue/RogueMain.c
+      - name: Test legacy save migration utility
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('/tmp/legacy.broguesave')
+          header = bytearray(36)
+          header[:9] = b'CE 1.15.1'
+          header[15] = 0
+          p.write_bytes(bytes(header) + b'event-stream-must-not-change')
+          PY
+          python3 repair_legacy_obrien_save.py /tmp/legacy.broguesave --output /tmp/fixed.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          a = Path('/tmp/legacy.broguesave').read_bytes()
+          b = Path('/tmp/fixed.broguesave').read_bytes()
+          assert len(a) == len(b)
+          assert b[15] == 0xB0
+          assert a[:15] == b[:15]
+          assert a[16:] == b[16:]
+          PY
+      - name: Compile
+        run: make -B -j3 bin/brogue
