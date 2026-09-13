@@ -6,13 +6,24 @@ time = Path('src/brogue/Time.c')
 rs = rec.read_text(encoding='utf-8')
 ts = time.read_text(encoding='utf-8')
 
-old = 'static void playerFalls() {'
-new = 'void forensicPlayerFalls() {'
-if old not in ts:
-    raise SystemExit('playerFalls anchor missing')
-ts = ts.replace(old, new, 1)
-# Replace the normal internal call so the renamed function still handles actual falls.
-ts = ts.replace('            playerFalls();\n', '            forensicPlayerFalls();\n', 1)
+# Keep the real static playerFalls() untouched. Export only a thin forensic wrapper.
+anchor = '''    rogue.flareCount = 0;
+}
+
+
+
+void activateMachine(short machineNumber) {'''
+repl = '''    rogue.flareCount = 0;
+}
+
+void forensicPlayerFalls(void) {
+    playerFalls();
+}
+
+void activateMachine(short machineNumber) {'''
+if anchor not in ts:
+    raise SystemExit('playerFalls wrapper anchor missing')
+ts = ts.replace(anchor, repl, 1)
 time.write_text(ts, encoding='utf-8')
 
 anchor = '''            case RNG_CHECK:
