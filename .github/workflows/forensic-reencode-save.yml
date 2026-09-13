@@ -10,7 +10,7 @@ on:
       - '.github/workflows/forensic-reencode-save.yml'
 
 jobs:
-  build:
+  reencoder:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,3 +38,33 @@ jobs:
         with:
           name: forensic-reencode-v028
           path: artifact
+
+  clean-verifier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply untouched OBrien v0.2.28
+        run: python3 apply_obrien_mod_v0_2_28.py
+      - name: Compile untouched null-console v0.2.28 with debug symbols
+        run: make -B -j3 GRAPHICS=NO CFLAGS='-g -O0' bin/brogue
+      - name: Package clean verifier
+        run: |
+          mkdir -p clean-artifact
+          cp bin/brogue clean-artifact/brogue-clean-v028
+          cat > clean-artifact/VERIFY_WITH_GDB.txt <<'EOF'
+          This binary is clean O'Brien v0.2.28 source: no migration or replay patch is applied.
+          It is built with GRAPHICS=NO and -g -O0 only, so GDB can inspect state without changing replay logic.
+
+          For the migrated save, stop at switchToPlaying(). loadSavedGame() reaches that function only
+          after replay completes without gameHasEnded/playbackOOS. Inspect:
+            rogue.playerTurnNumber == 3727
+            player.currentHP > 0
+            rogue.gameHasEnded == 0
+            rogue.playbackOOS == 0
+
+          Also set a breakpoint on playbackPanic; hitting it is an immediate verification failure.
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clean-v028-gdb-verifier
+          path: clean-artifact
