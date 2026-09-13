@@ -55,18 +55,61 @@ jobs:
           assert a[:15] == b[:15]
           assert a[16:] == b[16:]
           PY
-      - name: Compile
+      - name: Compile production build
         run: make -B -j3 bin/brogue
       - name: Verify root launcher owns asset working directory
         run: |
           grep -q 'dirname.*bin' brogue
           test -f bin/assets/tiles.png
-      - name: Package patched Linux build for save tests
+      - name: Package production build
         run: |
           mkdir -p artifact/bin
-          cp bin/brogue artifact/bin/
+          cp bin/brogue artifact/bin/brogue
           cp -a bin/assets artifact/bin/
           cp brogue artifact/
+      - name: Inject save-load state diagnostics
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/brogue/Recordings.c')
+          s = p.read_text()
+          old = '''    if (!rogue.gameHasEnded && !rogue.playbackOOS) {
+        switchToPlaying();
+        recordChar(SAVED_GAME_LOADED);
+    }
+    return true;
+}'''
+          new = '''    if (!rogue.gameHasEnded && !rogue.playbackOOS) {
+        switchToPlaying();
+        printf("SAVE_DIAGNOSTIC SUCCESS turn=%li target=%li depth=%i hp=%i maxhp=%i ended=%i oos=%i rec=%li len=%li\\n",
+               rogue.playerTurnNumber, rogue.howManyTurns, rogue.depthLevel,
+               player.currentHP, player.info.maxHP, rogue.gameHasEnded,
+               rogue.playbackOOS, recordingLocation, lengthOfPlaybackFile);
+        fflush(stdout);
+        recordChar(SAVED_GAME_LOADED);
+        if (getenv("BROGUE_SAVE_DIAGNOSTIC_EXIT")) {
+            exit(player.currentHP > 0 && !rogue.gameHasEnded && !rogue.playbackOOS ? 0 : 3);
+        }
+    } else {
+        printf("SAVE_DIAGNOSTIC FAIL turn=%li target=%li depth=%i hp=%i maxhp=%i ended=%i oos=%i rec=%li len=%li\\n",
+               rogue.playerTurnNumber, rogue.howManyTurns, rogue.depthLevel,
+               player.currentHP, player.info.maxHP, rogue.gameHasEnded,
+               rogue.playbackOOS, recordingLocation, lengthOfPlaybackFile);
+        fflush(stdout);
+        if (getenv("BROGUE_SAVE_DIAGNOSTIC_EXIT")) {
+            exit(4);
+        }
+    }
+    return true;
+}'''
+          if old not in s:
+              raise SystemExit('loadSavedGame success block not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Compile diagnostic build
+        run: make -B -j3 bin/brogue
+      - name: Package diagnostic build
+        run: cp bin/brogue artifact/bin/brogue-diagnostic
       - name: Upload patched Linux build
         uses: actions/upload-artifact@v4
         with:
