@@ -5,6 +5,7 @@ on:
     branches: [ master ]
     paths:
       - 'forensic_reencode_legacy_save.py'
+      - 'forensic_reencode_event_source_fix.py'
       - 'forensic_migration_nullconsole.py'
       - '.github/workflows/forensic-reencode-save.yml'
 
@@ -22,6 +23,7 @@ jobs:
       - name: Inject one-shot re-encoder
         run: |
           python3 forensic_reencode_legacy_save.py
+          python3 forensic_reencode_event_source_fix.py
           python3 forensic_migration_nullconsole.py
       - name: Compile
         run: make -B -j3 bin/brogue
