@@ -7,6 +7,7 @@ on:
       - 'forensic_reencode_legacy_save.py'
       - 'forensic_reencode_event_source_fix.py'
       - 'forensic_migration_nullconsole.py'
+      - 'forensic_clean_verify.gdb'
       - '.github/workflows/forensic-reencode-save.yml'
 
 jobs:
@@ -51,18 +52,19 @@ jobs:
         run: |
           mkdir -p clean-artifact
           cp bin/brogue clean-artifact/brogue-clean-v028
+          cp forensic_clean_verify.gdb clean-artifact/
           cat > clean-artifact/VERIFY_WITH_GDB.txt <<'EOF'
           This binary is clean O'Brien v0.2.28 source: no migration or replay patch is applied.
           It is built with GRAPHICS=NO and -g -O0 only, so GDB can inspect state without changing replay logic.
 
-          For the migrated save, stop at switchToPlaying(). loadSavedGame() reaches that function only
-          after replay completes without gameHasEnded/playbackOOS. Inspect:
+          Copy the migrated save beside the binary as migrated.broguesave, then run:
+            gdb -q -batch -x forensic_clean_verify.gdb ./brogue-clean-v028
+
+          The GDB probe rejects playbackPanic and accepts only:
             rogue.playerTurnNumber == 3727
             player.currentHP > 0
             rogue.gameHasEnded == 0
             rogue.playbackOOS == 0
-
-          Also set a breakpoint on playbackPanic; hitting it is an immediate verification failure.
           EOF
       - uses: actions/upload-artifact@v4
         with:
