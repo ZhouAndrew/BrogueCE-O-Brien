@@ -1,0 +1,38 @@
+name: Forensic turn3 mechanisms null
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+    paths:
+      - '.github/workflows/forensic-turn3-mechanisms-null.yml'
+      - 'forensic_fall_patch.py'
+      - 'forensic_third_k_stairs_patch.py'
+      - 'forensic_history_outcome.py'
+
+jobs:
+  fall:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 apply_obrien_mod_v0_2_23.py
+      - run: python3 forensic_fall_patch.py
+      - run: python3 forensic_history_outcome.py
+      - run: make -B -j3 GRAPHICS=NO bin/brogue
+      - run: mkdir -p artifact && cp bin/brogue artifact/brogue-v023-force-fall
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forensic-v023-force-fall-null
+          path: artifact
+  stairs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 apply_obrien_mod_v0_2_23.py
+      - run: python3 forensic_third_k_stairs_patch.py
+      - run: python3 forensic_history_outcome.py
+      - run: make -B -j3 GRAPHICS=NO bin/brogue
+      - run: mkdir -p artifact && cp bin/brogue artifact/brogue-v023-force-stairs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forensic-v023-force-stairs-null
+          path: artifact
