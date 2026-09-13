@@ -61,6 +61,18 @@ jobs:
         run: |
           grep -q 'dirname.*bin' brogue
           test -f bin/assets/tiles.png
+      - name: Package patched Linux build for save tests
+        run: |
+          mkdir -p artifact/bin
+          cp bin/brogue artifact/bin/
+          cp -a bin/assets artifact/bin/
+          cp brogue artifact/
+      - name: Upload patched Linux build
+        uses: actions/upload-artifact@v4
+        with:
+          name: obrien-v028-linux-test
+          path: artifact
+          if-no-files-found: error
 
   upgrade-existing-v027-tree:
     runs-on: ubuntu-latest
