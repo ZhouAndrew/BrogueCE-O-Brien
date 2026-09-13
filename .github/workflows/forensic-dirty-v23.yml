@@ -1,0 +1,49 @@
+name: Forensic dirty v23 reconstruction
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+    paths:
+      - 'forensic_v23_delta_only.py'
+      - '.github/workflows/forensic-dirty-v23.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev
+      - name: Apply v22 clean and snapshot
+        run: |
+          python3 apply_obrien_mod_v0_2_22.py
+          mkdir -p /tmp/before
+          cp src/brogue/RogueMain.c /tmp/before/RogueMain.c
+          cp src/brogue/Time.c /tmp/before/Time.c
+          cp src/brogue/Recordings.c /tmp/before/Recordings.c
+      - name: Attempt chained v23 and preserve failure state
+        run: |
+          set +e
+          python3 apply_obrien_mod_v0_2_23.py > /tmp/v23-retry.log 2>&1
+          echo $? > /tmp/v23-retry.exit
+          set -e
+          diff -u /tmp/before/RogueMain.c src/brogue/RogueMain.c > /tmp/partial.diff || true
+          cat /tmp/v23-retry.log
+          cat /tmp/partial.diff
+      - name: Apply only real v23 delta onto partial dirty tree
+        run: python3 forensic_v23_delta_only.py
+      - name: Compile dirty reconstruction
+        run: make -B -j3 bin/brogue
+      - name: Package
+        run: |
+          mkdir -p artifact/bin
+          cp bin/brogue artifact/bin/brogue-dirty-v23
+          cp -a bin/assets artifact/bin/
+          cp -a src/brogue artifact/source
+          cp /tmp/v23-retry.log /tmp/v23-retry.exit /tmp/partial.diff artifact/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forensic-dirty-v23
+          path: artifact
