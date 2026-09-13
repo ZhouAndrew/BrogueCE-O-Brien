@@ -11,70 +11,6 @@ def replace_once(old, new, label):
     s = s.replace(old, new, 1)
 
 replace_once(
-'''enum recordingSeekModes {
-    RECORDING_SEEK_MODE_TURN,
-    RECORDING_SEEK_MODE_DEPTH
-};
-
-static void recordChar(unsigned char c) {''',
-'''enum recordingSeekModes {
-    RECORDING_SEEK_MODE_TURN,
-    RECORDING_SEEK_MODE_DEPTH
-};
-
-/* FORENSIC_TRANSITION: one-byte logical pushback so a stray RNG_CHECK can be
- * handed back to startLevel()->RNGCheck()->OOSCheck(). */
-static int forensicPushedChar = -1;
-
-static void recordChar(unsigned char c) {''',
-'enum')
-
-replace_once(
-'''static unsigned char recallChar() {
-    unsigned char c;
-    if (recordingLocation > lengthOfPlaybackFile) {
-        return END_OF_RECORDING;
-    }
-    c = inputRecordBuffer[locationInRecordingBuffer++];
-    recordingLocation++;
-    if (locationInRecordingBuffer >= INPUT_RECORD_BUFFER) {
-        fillBufferFromFile();
-    }
-    return c;
-}
-''',
-'''static unsigned char recallChar() {
-    unsigned char c;
-    if (forensicPushedChar >= 0) {
-        c = (unsigned char) forensicPushedChar;
-        forensicPushedChar = -1;
-        recordingLocation++;
-        return c;
-    }
-    if (recordingLocation > lengthOfPlaybackFile) {
-        return END_OF_RECORDING;
-    }
-    c = inputRecordBuffer[locationInRecordingBuffer++];
-    recordingLocation++;
-    if (locationInRecordingBuffer >= INPUT_RECORD_BUFFER) {
-        fillBufferFromFile();
-    }
-    return c;
-}
-
-static void forensicPushBackChar(unsigned char c) {
-    if (forensicPushedChar >= 0) {
-        printf("FORENSIC ERROR double pushback at loc=%li\\n", recordingLocation);
-        fflush(stdout);
-        exit(99);
-    }
-    forensicPushedChar = c;
-    if (recordingLocation > 0) recordingLocation--;
-}
-''',
-'recallChar')
-
-replace_once(
 '''            case RNG_CHECK:
             case END_OF_RECORDING:
             case EVENT_ERROR:
@@ -86,20 +22,25 @@ replace_once(
                 break;''',
 '''            case RNG_CHECK:
                 if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {
-                    short savedRNG = rogue.RNG;
-                    printf("FORENSIC stray RNG_CHECK -> forced descent before: turn=%li depth=%i hp=%i loc=%li\\n",
-                           rogue.playerTurnNumber, rogue.depthLevel, player.currentHP, recordingLocation - 1);
+                    const unsigned char recordedCheck = recallChar();
+                    printf("FORENSIC STATE stray_at=%li turn=%li depth=%i recorded=%u hp=%i/%i pos=%i,%i\\n",
+                           recordingLocation - 2, rogue.playerTurnNumber, rogue.depthLevel,
+                           (unsigned) recordedCheck, player.currentHP, player.info.maxHP,
+                           player.loc.x, player.loc.y);
+                    printf("FORENSIC STATUS paralyzed=%i confused=%i entranced=%i stuck=%i levitating=%i poisoned=%i burning=%i\\n",
+                           player.status[STATUS_PARALYZED], player.status[STATUS_CONFUSED],
+                           player.status[STATUS_ENTRANCED], player.status[STATUS_STUCK],
+                           player.status[STATUS_LEVITATING], player.status[STATUS_POISONED],
+                           player.status[STATUS_BURNING]);
+                    printf("FORENSIC CELL dungeon=%i liquid=%i gas=%i surface=%i flags=%lu nutrition=%i ticks=%i\\n",
+                           pmapAt(player.loc)->layers[DUNGEON],
+                           pmapAt(player.loc)->layers[LIQUID],
+                           pmapAt(player.loc)->layers[GAS],
+                           pmapAt(player.loc)->layers[SURFACE],
+                           (unsigned long) pmapAt(player.loc)->flags,
+                           player.status[STATUS_NUTRITION], player.ticksUntilTurn);
                     fflush(stdout);
-                    forensicPushBackChar(c);
-                    rogue.RNG = RNG_SUBSTANTIVE;
-                    useStairs(1);
-                    rogue.RNG = savedRNG;
-                    printf("FORENSIC after forced descent: turn=%li depth=%i hp=%i ended=%i oos=%i loc=%li\\n",
-                           rogue.playerTurnNumber, rogue.depthLevel, player.currentHP,
-                           rogue.gameHasEnded, rogue.playbackOOS, recordingLocation);
-                    fflush(stdout);
-                    tryAgain = true;
-                    break;
+                    exit(0);
                 }
                 // fall through for non-O'Brien variants
             case END_OF_RECORDING:
@@ -111,18 +52,6 @@ replace_once(
                 playbackPanic();
                 break;''',
 'recallEvent RNG')
-
-replace_once(
-'''    locationInRecordingBuffer   = 0;
-    positionInPlaybackFile      = 0;
-    recordingLocation           = 0;
-    maxLevelChanges             = 0;''',
-'''    locationInRecordingBuffer   = 0;
-    positionInPlaybackFile      = 0;
-    recordingLocation           = 0;
-    forensicPushedChar          = -1;
-    maxLevelChanges             = 0;''',
-'init reset')
 
 replace_once(
 '''    if (rogue.playbackMode) {
@@ -140,4 +69,4 @@ replace_once(
 'OOS')
 
 p.write_text(s, encoding='utf-8')
-print('forensic forced-transition patch applied')
+print('forensic state-dump patch applied')
