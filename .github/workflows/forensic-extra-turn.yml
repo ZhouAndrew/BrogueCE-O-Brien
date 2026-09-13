@@ -1,4 +1,4 @@
-name: Forensic extra-turn replay
+name: Forensic historical replay matrix
 on:
   push:
     branches: [ master ]
@@ -9,6 +9,10 @@ on:
 
 jobs:
   build:
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ['18','19','20','21','22','23']
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -17,11 +21,8 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y libsdl2-dev libsdl2-image-dev
-      - name: Reproduce partial dirty upgrade
-        run: |
-          python3 apply_obrien_mod_v0_2_23.py
-          python3 apply_obrien_mod_v0_2_24.py || true
-          git diff -- src/brogue/RogueMain.c src/brogue/Time.c src/brogue/Items.c src/brogue/Monsters.c
+      - name: Apply historical OBrien version
+        run: python3 apply_obrien_mod_v0_2_${{ matrix.version }}.py
       - name: Inject forensic replay
         run: python3 forensic_extra_turn_patch.py
       - name: Compile
@@ -29,12 +30,11 @@ jobs:
       - name: Package
         run: |
           mkdir -p artifact/bin
-          cp bin/brogue artifact/bin/brogue-forensic-extra-turn
+          cp bin/brogue artifact/bin/brogue-forensic-v${{ matrix.version }}
           cp -a bin/assets artifact/bin/
           cp brogue artifact/
-          cp src/brogue/RogueMain.c artifact/RogueMain-partial.c
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: forensic-partial-v024
+          name: forensic-v0-2-${{ matrix.version }}
           path: artifact
