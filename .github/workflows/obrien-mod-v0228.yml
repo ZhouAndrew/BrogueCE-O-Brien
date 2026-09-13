@@ -73,35 +73,8 @@ jobs:
           from pathlib import Path
           p = Path('src/brogue/Recordings.c')
           s = p.read_text()
-          old = '''    if (!rogue.gameHasEnded && !rogue.playbackOOS) {
-        switchToPlaying();
-        recordChar(SAVED_GAME_LOADED);
-    }
-    return true;
-}'''
-          new = '''    if (!rogue.gameHasEnded && !rogue.playbackOOS) {
-        switchToPlaying();
-        printf("SAVE_DIAGNOSTIC SUCCESS turn=%li target=%li depth=%i hp=%i maxhp=%i ended=%i oos=%i rec=%li len=%li\\n",
-               rogue.playerTurnNumber, rogue.howManyTurns, rogue.depthLevel,
-               player.currentHP, player.info.maxHP, rogue.gameHasEnded,
-               rogue.playbackOOS, recordingLocation, lengthOfPlaybackFile);
-        fflush(stdout);
-        recordChar(SAVED_GAME_LOADED);
-        if (getenv("BROGUE_SAVE_DIAGNOSTIC_EXIT")) {
-            exit(player.currentHP > 0 && !rogue.gameHasEnded && !rogue.playbackOOS ? 0 : 3);
-        }
-    } else {
-        printf("SAVE_DIAGNOSTIC FAIL turn=%li target=%li depth=%i hp=%i maxhp=%i ended=%i oos=%i rec=%li len=%li\\n",
-               rogue.playerTurnNumber, rogue.howManyTurns, rogue.depthLevel,
-               player.currentHP, player.info.maxHP, rogue.gameHasEnded,
-               rogue.playbackOOS, recordingLocation, lengthOfPlaybackFile);
-        fflush(stdout);
-        if (getenv("BROGUE_SAVE_DIAGNOSTIC_EXIT")) {
-            exit(4);
-        }
-    }
-    return true;
-}'''
+          old = "    if (!rogue.gameHasEnded && !rogue.playbackOOS) {\n        switchToPlaying();\n        recordChar(SAVED_GAME_LOADED);\n    }\n    return true;\n}"
+          new = "    if (!rogue.gameHasEnded && !rogue.playbackOOS) {\n        switchToPlaying();\n        printf(\"SAVE_DIAGNOSTIC SUCCESS turn=%li target=%li depth=%i hp=%i maxhp=%i ended=%i oos=%i rec=%li len=%li\\\\n\", rogue.playerTurnNumber, rogue.howManyTurns, rogue.depthLevel, player.currentHP, player.info.maxHP, rogue.gameHasEnded, rogue.playbackOOS, recordingLocation, lengthOfPlaybackFile);\n        fflush(stdout);\n        recordChar(SAVED_GAME_LOADED);\n        if (getenv(\"BROGUE_SAVE_DIAGNOSTIC_EXIT\")) { exit(player.currentHP > 0 && !rogue.gameHasEnded && !rogue.playbackOOS ? 0 : 3); }\n    } else {\n        printf(\"SAVE_DIAGNOSTIC FAIL turn=%li target=%li depth=%i hp=%i maxhp=%i ended=%i oos=%i rec=%li len=%li\\\\n\", rogue.playerTurnNumber, rogue.howManyTurns, rogue.depthLevel, player.currentHP, player.info.maxHP, rogue.gameHasEnded, rogue.playbackOOS, recordingLocation, lengthOfPlaybackFile);\n        fflush(stdout);\n        if (getenv(\"BROGUE_SAVE_DIAGNOSTIC_EXIT\")) { exit(4); }\n    }\n    return true;\n}"
           if old not in s:
               raise SystemExit('loadSavedGame success block not found')
           p.write_text(s.replace(old, new, 1))
