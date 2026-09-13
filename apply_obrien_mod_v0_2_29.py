@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 """Apply O'Brien Must Survive v0.2.29 to a Brogue CE 1.15.1 tree.
 
-v0.2.29 adds compatibility for long O'Brien saves recorded by an older O'Brien
-ruleset that emitted additional RNG_CHECK records between player input events.
-Those checks are audit records, not input.  Treating event ID 6 as a keystroke
-causes loading to abort even though the recording stream is intact.
+v0.2.29 repairs long O'Brien save playback across older O'Brien rulesets.
+Some old saves contain additional one-byte RNG_CHECK audit records between input
+events and may also have consumed substantive RNG that the current ruleset no
+longer consumes at the same point.  A save is an input recording, so losing RNG
+alignment eventually makes the reconstruction diverge and event ID 6 can be
+mistaken for ordinary input.
 
-For O'Brien recordings only, when recallEvent encounters an unexpected RNG_CHECK,
-consume its one-byte payload and perform the same substantive rand_range(0,255)
-step that RNGCheck() would have performed in the older build.  This both skips the
-obsolete audit record and keeps the substantive RNG state aligned for the rest of
-the replay.  Other variants retain Brogue CE's strict playback behavior.
+For O'Brien recordings only, this compatibility layer:
+- treats a stray RNG_CHECK as an audit record rather than player input;
+- advances the current substantive RNG until it re-locks to the recorded audit
+  byte (bounded search), preserving the old stream's RNG phase as closely as
+  possible;
+- performs the same re-lock when a normally expected RNG_CHECK has a mismatched
+  byte.
+Other variants retain Brogue CE's original strict playback behavior.
 """
 
 from pathlib import Path
@@ -55,9 +60,70 @@ def replace_once(rel, old, new, marker=None):
     if marker and marker in text:
         print(f"already patched {rel}")
         return
-    raise SystemExit(f"Cannot patch {rel}: expected v0.2.28 source was not found.")
+    raise SystemExit(f"Cannot patch {rel}: expected compatible source was not found.")
 
 
+# Helper used by both kinds of legacy mismatch.  RNGCheck() always records one
+# byte in this Brogue CE branch.  The bounded scan avoids an infinite loop on a
+# genuinely corrupt file while allowing older rule sets to have consumed many
+# substantive random values between adjacent input records.
+replace_once(
+    "src/brogue/Recordings.c",
+    """static uint64_t recallNumber(short numberOfBytes) {
+    short i;
+    uint64_t n;
+
+    n = 0;
+
+    for (i=0; i<numberOfBytes; i++) {
+        n *= 256;
+        n += (uint64_t) recallChar();
+    }
+    return n;
+}
+""",
+    """static uint64_t recallNumber(short numberOfBytes) {
+    short i;
+    uint64_t n;
+
+    n = 0;
+
+    for (i=0; i<numberOfBytes; i++) {
+        n *= 256;
+        n += (uint64_t) recallChar();
+    }
+    return n;
+}
+
+/* OBRIEN_V029_RNG_RELOCK
+ * Re-lock an old O'Brien recording to a recorded one-byte RNG audit value.
+ * Return the number of additional substantive RNG draws used, or -1 if no
+ * match was found inside the safety bound.
+ */
+static long obrienRelockRNGByte(unsigned char recordedCheck) {
+    const long maxDraws = 4096;
+    const short oldRNG = rogue.RNG;
+    long draws;
+    unsigned char replayedCheck = 0;
+
+    rogue.RNG = RNG_SUBSTANTIVE;
+    for (draws = 1; draws <= maxDraws; draws++) {
+        replayedCheck = (unsigned char) rand_range(0, 255);
+        if (replayedCheck == recordedCheck) {
+            rogue.RNG = oldRNG;
+            return draws;
+        }
+    }
+    rogue.RNG = oldRNG;
+    return -1;
+}
+""",
+    "OBRIEN_V029_RNG_RELOCK",
+)
+
+# A checkpoint appearing where current code requests input is not input.  Consume
+# its payload, re-lock substantive RNG to that audit byte, then ask for input
+# again.  This directly fixes the user's event-ID-6 failure path.
 replace_once(
     "src/brogue/Recordings.c",
     """            case RNG_CHECK:
@@ -71,20 +137,11 @@ replace_once(
                 break;""",
     """            case RNG_CHECK:
                 if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {
-                    /* v0.2.29 long-save compatibility: some older O'Brien builds
-                     * emitted additional RNGCheck() audit records between input
-                     * events.  Reproduce the old audit RNG step as well as
-                     * consuming its recorded byte; otherwise later substantive
-                     * RNG would be one call behind for every skipped checkpoint.
-                     */
                     const unsigned char recordedCheck = recallChar();
-                    const short oldRNG = rogue.RNG;
-                    rogue.RNG = RNG_SUBSTANTIVE;
-                    const unsigned char replayedCheck = (unsigned char) rand_range(0, 255);
-                    rogue.RNG = oldRNG;
-                    if (recordedCheck != replayedCheck) {
-                        printf(\"O'Brien legacy RNG checkpoint mismatch at location %li: recorded %u, replayed %u.\\n\",
-                               recordingLocation - 1, (unsigned) recordedCheck, (unsigned) replayedCheck);
+                    const long relockDraws = obrienRelockRNGByte(recordedCheck);
+                    if (relockDraws < 0) {
+                        printf(\"O'Brien long-save RNG relock failed at location %li for value %u; continuing salvage.\\n\",
+                               recordingLocation - 1, (unsigned) recordedCheck);
                     }
                     tryAgain = true;
                     break;
@@ -99,7 +156,33 @@ replace_once(
                 tryAgain = true;
                 playbackPanic();
                 break;""",
-    "v0.2.29 long-save compatibility",
+    "const long relockDraws = obrienRelockRNGByte(recordedCheck);",
+)
+
+# If current code does call RNGCheck at the right structural point but its byte
+# differs, current RNG is behind an old ruleset that consumed extra substantive
+# randomness.  Scan forward to the recorded value instead of aborting the load.
+replace_once(
+    "src/brogue/Recordings.c",
+    """            } else if (recordedNumber != x) {
+                printf(\"Expected RNG output of %li; got %i.\\n\", recordedNumber, (int) x);
+                playbackPanic();
+            }
+""",
+    """            } else if (recordedNumber != x) {
+                if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE && numberOfBytes == 1) {
+                    const long relockDraws = obrienRelockRNGByte((unsigned char) recordedNumber);
+                    if (relockDraws < 0) {
+                        printf(\"O'Brien long-save RNG relock failed for expected value %li after current value %i; continuing salvage.\\n\",
+                               recordedNumber, (int) x);
+                    }
+                } else {
+                    printf(\"Expected RNG output of %li; got %i.\\n\", recordedNumber, (int) x);
+                    playbackPanic();
+                }
+            }
+""",
+    "O'Brien long-save RNG relock failed for expected value",
 )
 
 replace_once(
@@ -110,7 +193,8 @@ replace_once(
 )
 
 print("O'Brien Must Survive v0.2.29 applied.")
-print("- legacy O'Brien RNG_CHECK records encountered between input events are replayed, not treated as input")
-print("- each salvaged checkpoint advances substantive RNG exactly once to preserve alignment")
+print("- stray legacy RNG_CHECK records are treated as audit records, not input")
+print("- substantive RNG is re-locked to recorded one-byte checkpoints with a bounded scan")
+print("- expected-check byte mismatches use the same O'Brien-only re-lock path")
 print("- non-O'Brien playback remains strict and unchanged")
 print("Build with: make -B -j3 bin/brogue")
