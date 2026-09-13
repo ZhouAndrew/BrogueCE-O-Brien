@@ -1,0 +1,32 @@
+name: Forensic partial v024 null build
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+    paths:
+      - '.github/workflows/forensic-partial-v024-null.yml'
+      - 'forensic_history_outcome.py'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reproduce partial v024 tree
+        shell: bash
+        run: |
+          python3 apply_obrien_mod_v0_2_23.py
+          python3 apply_obrien_mod_v0_2_24.py || true
+      - name: Add replay diagnostics
+        run: python3 forensic_history_outcome.py
+      - name: Build null console
+        run: make -B -j3 GRAPHICS=NO bin/brogue
+      - name: Package
+        run: |
+          mkdir -p artifact
+          cp bin/brogue artifact/brogue-partial-v024-null
+          cp src/brogue/RogueMain.c artifact/RogueMain-partial-v024.c
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forensic-partial-v024-null
+          path: artifact
