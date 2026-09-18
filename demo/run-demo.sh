@@ -11,8 +11,8 @@ if [[ ! -x "$BIN" ]]; then
   cat >&2 <<'EOF'
 No Brogue binary found at bin/brogue.
 
-For the intended O'Brien v0.2.28 demo build:
-  python3 apply_obrien_mod_v0_2_28.py
+For the intended O'Brien v0.2.29 demo build:
+  python3 apply_obrien_mod_v0_2_29.py
   make -B
   ./demo/run-demo.sh
 
@@ -21,16 +21,16 @@ EOF
   exit 2
 fi
 
-RUNTIME="${TMPDIR:-/tmp}/obrien-3727-historical-demo-${USER:-user}.broguesave"
-cp "$SAVE" "$RUNTIME"
+RUNTIME="${TMPDIR:-/tmp}/obrien-3727-repaired-demo-${USER:-user}.broguesave"
+python3 "$ROOT/repair_legacy_obrien_save.py" "$SAVE" --output "$RUNTIME"
 
-echo "Historical demo source remains untouched:"
+echo "Historical forensic source remains untouched:"
 echo "  $SAVE"
-echo "Runtime copy:"
+echo "Repaired disposable runtime copy:"
 echo "  $RUNTIME"
 echo
-echo "NOTE: this is the original forensic save, not a repaired save."
-echo "Current clean v0.2.28 is expected to expose the historical replay/OOS problem."
+echo "The runtime copy inserts only the 41 historically omitted input events"
+echo "(37 Call Security C events + 4 Power Cell target choices)."
 
 cd "$(dirname "$BIN")"
 exec "./$(basename "$BIN")" -o "$RUNTIME"
