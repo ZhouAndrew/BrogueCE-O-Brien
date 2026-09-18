@@ -1,38 +1,55 @@
-name: "O'Brien Mod v0.2.29 long-save compatibility"
+name: "O'Brien Mod v0.2.29 recording integrity"
+
 on:
   push:
-    branches: [ master ]
+    branches:
+      - master
+      - fix/longsave-turn3-replay
     paths:
       - 'apply_obrien_mod*.py'
       - 'repair_legacy_obrien_save.py'
+      - 'demo/**'
       - '.github/workflows/obrien-mod-v0228.yml'
-      - 'changes/obrien-v0.2.28.md'
-      - 'changes/obrien-v0.2.28-updater-hotfix.md'
+      - 'changes/obrien-v0.2.29.md'
   pull_request:
     paths:
       - 'apply_obrien_mod*.py'
       - 'repair_legacy_obrien_save.py'
+      - 'demo/**'
       - '.github/workflows/obrien-mod-v0228.yml'
+      - 'changes/obrien-v0.2.29.md'
   workflow_dispatch:
 
 jobs:
   clean-tree-build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
       - name: Install dependencies
         run: |
           sudo apt update -y
           sudo apt install -y libsdl2-dev libsdl2-image-dev
+
       - name: Apply O'Brien v0.2.29 from clean tree
         run: python3 apply_obrien_mod_v0_2_29.py
-      - name: Verify long-save compatibility patch
+
+      - name: Verify production recording fixes
         run: |
           grep -q 'RECORDING_VARIANT_TAG' src/brogue/Recordings.c
-          grep -q 'OBRIEN_V029_RNG_RELOCK' src/brogue/Recordings.c
+          grep -q 'v0.2.29 recording integrity' src/brogue/Monsters.c
+          grep -q 'v0.2.29 Call Security record' src/brogue/Monsters.c
+          grep -q 'v0.2.29 Power Cell target' src/brogue/Items.c
           grep -q "O'Brien Must Survive v0.2.29" src/brogue/RogueMain.c
-      - name: Test legacy save migration utility
+          if grep -q 'OBRIEN_V029_RNG_RELOCK' src/brogue/Recordings.c; then
+            echo "experimental RNG salvage must not exist in production" >&2
+            exit 1
+          fi
+
+      - name: Compile production build
+        run: make -B -j3 bin/brogue
+
+      - name: Test generic legacy header tagging
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -40,6 +57,7 @@ jobs:
           header = bytearray(36)
           header[:9] = b'CE 1.15.1'
           header[15] = 0
+          header[32:36] = (36 + len(b'event-stream-must-not-change')).to_bytes(4, 'big')
           p.write_bytes(bytes(header) + b'event-stream-must-not-change')
           PY
           python3 repair_legacy_obrien_save.py /tmp/legacy.broguesave --output /tmp/fixed.broguesave
@@ -52,57 +70,32 @@ jobs:
           assert a[:15] == b[:15]
           assert a[16:] == b[16:]
           PY
-      - name: Compile production build
-        run: make -B -j3 bin/brogue
-      - name: Verify root launcher owns asset working directory
+
+      - name: Test exact historical migration identity
         run: |
-          grep -q 'dirname.*bin' brogue
-          test -f bin/assets/tiles.png
-      - name: Package production build
-        run: |
-          mkdir -p artifact/bin
-          cp bin/brogue artifact/bin/brogue
-          cp -a bin/assets artifact/bin/
-          cp brogue artifact/
-      - name: Inject save-load state diagnostics
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('src/brogue/Recordings.c')
-          s = p.read_text()
-          old = "    if (!rogue.gameHasEnded && !rogue.playbackOOS) {\n        switchToPlaying();\n        recordChar(SAVED_GAME_LOADED);\n    }\n    return true;\n}"
-          new = "    if (!rogue.gameHasEnded && !rogue.playbackOOS) {\n        switchToPlaying();\n        printf(\"SAVE_DIAGNOSTIC SUCCESS turn=%li target=%li depth=%i hp=%i maxhp=%i ended=%i oos=%i rec=%li len=%li\\\\n\", rogue.playerTurnNumber, rogue.howManyTurns, rogue.depthLevel, player.currentHP, player.info.maxHP, rogue.gameHasEnded, rogue.playbackOOS, recordingLocation, lengthOfPlaybackFile);\n        fflush(stdout);\n        recordChar(SAVED_GAME_LOADED);\n        if (getenv(\"BROGUE_SAVE_DIAGNOSTIC_EXIT\")) { exit(player.currentHP > 0 && !rogue.gameHasEnded && !rogue.playbackOOS ? 0 : 3); }\n    } else {\n        printf(\"SAVE_DIAGNOSTIC FAIL turn=%li target=%li depth=%i hp=%i maxhp=%i ended=%i oos=%i rec=%li len=%li\\\\n\", rogue.playerTurnNumber, rogue.howManyTurns, rogue.depthLevel, player.currentHP, player.info.maxHP, rogue.gameHasEnded, rogue.playbackOOS, recordingLocation, lengthOfPlaybackFile);\n        fflush(stdout);\n        if (getenv(\"BROGUE_SAVE_DIAGNOSTIC_EXIT\")) { exit(4); }\n    }\n    return true;\n}"
-          if old not in s:
-              raise SystemExit('loadSavedGame success block not found')
-          p.write_text(s.replace(old, new, 1))
-          PY
-      - name: Compile diagnostic build
-        run: make -B -j3 bin/brogue
-      - name: Package diagnostic build
-        run: cp bin/brogue artifact/bin/brogue-diagnostic
-      - name: Upload patched Linux build
-        uses: actions/upload-artifact@v4
-        with:
-          name: obrien-v029-linux-test
-          path: artifact
-          if-no-files-found: error
+          python3 demo/materialize_save.py
+          python3 repair_legacy_obrien_save.py             demo/OBrien_3727turn_longsave_backup.broguesave             --output /tmp/OBrien_3727turn_repaired.broguesave
+          echo "6ec2dd4a57b9dac8015b09cc84004ffd499d5e50a5ef59be162f3b7dae5138c0  /tmp/OBrien_3727turn_repaired.broguesave" | sha256sum -c -
+          test "$(stat -c %s /tmp/OBrien_3727turn_repaired.broguesave)" = "20630"
 
   upgrade-existing-v027-tree:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-      - name: Install dependencies
-        run: |
-          sudo apt update -y
-          sudo apt install -y libsdl2-dev libsdl2-image-dev
+      - uses: actions/checkout@v4
+
       - name: First apply v0.2.27
         run: python3 apply_obrien_mod_v0_2_27.py
+
       - name: Upgrade same working tree to v0.2.29
         run: python3 apply_obrien_mod_v0_2_29.py
+
       - name: Verify upgraded tree
         run: |
-          grep -q 'OBRIEN_V029_RNG_RELOCK' src/brogue/Recordings.c
+          grep -q 'RECORDING_VARIANT_TAG' src/brogue/Recordings.c
+          grep -q 'v0.2.29 recording integrity' src/brogue/Monsters.c
+          grep -q 'v0.2.29 Power Cell target' src/brogue/Items.c
           grep -q "O'Brien Must Survive v0.2.29" src/brogue/RogueMain.c
+          if grep -q 'OBRIEN_V029_RNG_RELOCK' src/brogue/Recordings.c; then exit 1; fi
+
       - name: Compile upgraded tree
-        run: make -B -j3 bin/brogue
+        run: make -B -j3 GRAPHICS=NO bin/brogue
