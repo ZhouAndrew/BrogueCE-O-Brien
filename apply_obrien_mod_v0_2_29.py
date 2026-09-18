@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 """Apply O'Brien Must Survive v0.2.29 to a Brogue CE 1.15.1 tree.
 
-v0.2.29 repairs long O'Brien save playback across older O'Brien rulesets.
-Some old saves contain additional one-byte RNG_CHECK audit records between input
-events, omit checks now expected by the current ruleset, or consumed substantive
-RNG at different points.  A save is an input recording, so losing either byte
-alignment or RNG phase eventually makes reconstruction fail.
+v0.2.29 fixes two recording-integrity bugs found while reconstructing the
+historical 3727-turn O'Brien save:
 
-For O'Brien recordings only, this compatibility layer:
-- treats a stray RNG_CHECK as an audit record rather than player input;
-- re-locks substantive RNG to recorded one-byte audit values with a bounded scan;
-- if current code expects a checkpoint that the old save does not contain, puts
-  the real input event byte back into the logical playback stream instead of
-  consuming it as RNG data.
-Other variants retain Brogue CE's original strict playback behavior.
+1. Call Security / Toggle Security Hologram consumed a turn but did not record
+   its C command. The turn's RNG_CHECK was therefore left in the recording with
+   no preceding input event.
+2. Emergency Power Cell use recorded "a" plus the cell letter, but omitted the
+   selected target staff letter. Playback could select the cell but could not
+   reproduce the transfer.
+
+The fixes record the missing inputs at the point where the actions are committed,
+before playerTurnEnded() writes the normal RNG checkpoint. Playback remains
+Brogue-strict: there is no RNG scanning, checkpoint skipping, or synthetic input
+inside the production engine.
+
+The companion repair_legacy_obrien_save.py utility contains a hash-locked,
+deterministic migration for the one known 3727-turn historical fixture. It only
+inserts the inputs proven missing by forensic replay and updates the header file
+length.
 """
 
 from pathlib import Path
@@ -29,7 +35,9 @@ if not PREVIOUS_PATCH.exists():
 def source_has_v028_or_later():
     rec = ROOT / "src/brogue/Recordings.c"
     main = ROOT / "src/brogue/RogueMain.c"
-    if not rec.exists() or not main.exists():
+    monsters = ROOT / "src/brogue/Monsters.c"
+    items = ROOT / "src/brogue/Items.c"
+    if not all(p.exists() for p in (rec, main, monsters, items)):
         return False
     rec_text = rec.read_text(encoding="utf-8")
     main_text = main.read_text(encoding="utf-8")
@@ -58,240 +66,54 @@ def replace_once(rel, old, new, marker=None):
     if marker and marker in text:
         print(f"already patched {rel}")
         return
-    raise SystemExit(f"Cannot patch {rel}: expected compatible source was not found.")
+    raise SystemExit(f"Cannot patch {rel}: expected compatible v0.2.28 source was not found.")
 
 
-# One-byte logical pushback.  We cannot simply decrement the physical buffer
-# index because recallChar() may just have crossed a 1000-byte input-buffer
-# boundary.  Logical pushback works correctly on either side of that boundary.
+# Call Security is a real turn-taking action. Record C immediately before the
+# turn ends, so the event stream is KEY(C), RNG_CHECK rather than a bare check.
 replace_once(
-    "src/brogue/Recordings.c",
-    """enum recordingSeekModes {
-    RECORDING_SEEK_MODE_TURN,
-    RECORDING_SEEK_MODE_DEPTH
-};
-
-static void recordChar(unsigned char c) {""",
-    """enum recordingSeekModes {
-    RECORDING_SEEK_MODE_TURN,
-    RECORDING_SEEK_MODE_DEPTH
-};
-
-/* OBRIEN_V029_PLAYBACK_PUSHBACK */
-static int obrienPlaybackPushedChar = -1;
-
-static void recordChar(unsigned char c) {""",
-    "OBRIEN_V029_PLAYBACK_PUSHBACK",
+    "src/brogue/Monsters.c",
+    """        messageWithColor("Security Hologram offline. C will redeploy it with retained tactical state.",
+                         &itemMessageColor, 0);
+        playerTurnEnded();
+        return true;""",
+    """        messageWithColor("Security Hologram offline. C will redeploy it with retained tactical state.",
+                         &itemMessageColor, 0);
+        recordKeystroke(CREATE_ITEM_MONSTER_KEY, false, false); // v0.2.29 recording integrity
+        playerTurnEnded();
+        return true;""",
+    "v0.2.29 recording integrity",
 )
 
 replace_once(
-    "src/brogue/Recordings.c",
-    """static unsigned char recallChar() {
-    unsigned char c;
-    if (recordingLocation > lengthOfPlaybackFile) {
-        return END_OF_RECORDING;
-    }
-    c = inputRecordBuffer[locationInRecordingBuffer++];
-    recordingLocation++;
-    if (locationInRecordingBuffer >= INPUT_RECORD_BUFFER) {
-        fillBufferFromFile();
-    }
-    return c;
-}
-""",
-    """static unsigned char recallChar() {
-    unsigned char c;
-
-    if (obrienPlaybackPushedChar >= 0) {
-        c = (unsigned char) obrienPlaybackPushedChar;
-        obrienPlaybackPushedChar = -1;
-        recordingLocation++;
-        return c;
-    }
-
-    if (recordingLocation > lengthOfPlaybackFile) {
-        return END_OF_RECORDING;
-    }
-    c = inputRecordBuffer[locationInRecordingBuffer++];
-    recordingLocation++;
-    if (locationInRecordingBuffer >= INPUT_RECORD_BUFFER) {
-        fillBufferFromFile();
-    }
-    return c;
-}
-
-static void obrienPushBackPlaybackChar(unsigned char c) {
-    if (obrienPlaybackPushedChar >= 0) {
-        return;
-    }
-    obrienPlaybackPushedChar = c;
-    if (recordingLocation > 0) {
-        recordingLocation--;
-    }
-}
-""",
-    "static void obrienPushBackPlaybackChar",
+    "src/brogue/Monsters.c",
+    """    messageWithColor(buf, &itemMessageColor, 0);
+    playerTurnEnded();
+    return true;
+}""",
+    """    messageWithColor(buf, &itemMessageColor, 0);
+    recordKeystroke(CREATE_ITEM_MONSTER_KEY, false, false); // v0.2.29 Call Security record
+    playerTurnEnded();
+    return true;
+}""",
+    "v0.2.29 Call Security record",
 )
 
+# A Power Cell transfer has a nested inventory choice. recordApplyItemCommand()
+# writes "a" + cell letter; append the chosen staff letter so playback can make
+# the same nested choice before the turn's RNG checkpoint.
 replace_once(
-    "src/brogue/Recordings.c",
-    """    locationInRecordingBuffer   = 0;
-    positionInPlaybackFile      = 0;
-    recordingLocation           = 0;
-    maxLevelChanges             = 0;""",
-    """    locationInRecordingBuffer   = 0;
-    positionInPlaybackFile      = 0;
-    recordingLocation           = 0;
-    obrienPlaybackPushedChar    = -1;
-    maxLevelChanges             = 0;""",
-    "obrienPlaybackPushedChar    = -1;",
-)
-
-# Helper used by both kinds of legacy RNG mismatch. RNGCheck() records one byte
-# in this Brogue CE branch. The bounded scan avoids an infinite loop on a
-# genuinely corrupt file while allowing old rulesets to have consumed many
-# substantive random values between adjacent input records.
-replace_once(
-    "src/brogue/Recordings.c",
-    """static uint64_t recallNumber(short numberOfBytes) {
-    short i;
-    uint64_t n;
-
-    n = 0;
-
-    for (i=0; i<numberOfBytes; i++) {
-        n *= 256;
-        n += (uint64_t) recallChar();
-    }
-    return n;
-}
-""",
-    """static uint64_t recallNumber(short numberOfBytes) {
-    short i;
-    uint64_t n;
-
-    n = 0;
-
-    for (i=0; i<numberOfBytes; i++) {
-        n *= 256;
-        n += (uint64_t) recallChar();
-    }
-    return n;
-}
-
-/* OBRIEN_V029_RNG_RELOCK
- * Re-lock an old O'Brien recording to a recorded one-byte RNG audit value.
- * Return the number of additional substantive RNG draws used, or -1 if no
- * match was found inside the safety bound.
- */
-static long obrienRelockRNGByte(unsigned char recordedCheck) {
-    const long maxDraws = 4096;
-    const short oldRNG = rogue.RNG;
-    long draws;
-    unsigned char replayedCheck = 0;
-
-    rogue.RNG = RNG_SUBSTANTIVE;
-    for (draws = 1; draws <= maxDraws; draws++) {
-        replayedCheck = (unsigned char) rand_range(0, 255);
-        if (replayedCheck == recordedCheck) {
-            rogue.RNG = oldRNG;
-            return draws;
-        }
-    }
-    rogue.RNG = oldRNG;
-    return -1;
-}
-""",
-    "OBRIEN_V029_RNG_RELOCK",
-)
-
-# A checkpoint appearing where current code requests input is not input. Consume
-# its payload, re-lock substantive RNG to that audit byte, then ask for input
-# again. This directly fixes event-ID-6 being mistaken for player input.
-replace_once(
-    "src/brogue/Recordings.c",
-    """            case RNG_CHECK:
-            case END_OF_RECORDING:
-            case EVENT_ERROR:
-            default:
-                message(\"Unrecognized event type in playback.\", REQUIRE_ACKNOWLEDGMENT);
-                printf(\"Unrecognized event type in playback: event ID %i\", c);
-                tryAgain = true;
-                playbackPanic();
-                break;""",
-    """            case RNG_CHECK:
-                if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {
-                    const unsigned char recordedCheck = recallChar();
-                    const long relockDraws = obrienRelockRNGByte(recordedCheck);
-                    if (relockDraws < 0) {
-                        printf(\"O'Brien long-save RNG relock failed at location %li for value %u; continuing salvage.\\n\",
-                               recordingLocation - 1, (unsigned) recordedCheck);
-                    }
-                    tryAgain = true;
-                    break;
-                }
-                /* Non-O'Brien variants keep the original strict behavior. */
-                // fall through
-            case END_OF_RECORDING:
-            case EVENT_ERROR:
-            default:
-                message(\"Unrecognized event type in playback.\", REQUIRE_ACKNOWLEDGMENT);
-                printf(\"Unrecognized event type in playback: event ID %i\", c);
-                tryAgain = true;
-                playbackPanic();
-                break;""",
-    "const long relockDraws = obrienRelockRNGByte(recordedCheck);",
-)
-
-# In the opposite mismatch, current code asks for RNG_CHECK but an older save
-# already has the next real input event. Check the event type before consuming
-# an RNG payload and logically push the input type byte back for recallEvent().
-replace_once(
-    "src/brogue/Recordings.c",
-    """        eventType = recallChar();
-        recordedNumber = recallNumber(numberOfBytes);
-        if (eventType != RNG_CHECK || recordedNumber != x) {
-            if (eventType != RNG_CHECK) {
-                printf(\"Event type mismatch in RNG check.\\n\");
-                playbackPanic();
-            } else if (recordedNumber != x) {""",
-    """        eventType = recallChar();
-        if (eventType != RNG_CHECK && gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {
-            obrienPushBackPlaybackChar(eventType);
-            return;
-        }
-        recordedNumber = recallNumber(numberOfBytes);
-        if (eventType != RNG_CHECK || recordedNumber != x) {
-            if (eventType != RNG_CHECK) {
-                printf(\"Event type mismatch in RNG check.\\n\");
-                playbackPanic();
-            } else if (recordedNumber != x) {""",
-    "obrienPushBackPlaybackChar(eventType);",
-)
-
-# If current code calls RNGCheck at the right structural point but its byte
-# differs, scan forward to the old audit value instead of aborting the load.
-replace_once(
-    "src/brogue/Recordings.c",
-    """            } else if (recordedNumber != x) {
-                printf(\"Expected RNG output of %li; got %i.\\n\", recordedNumber, (int) x);
-                playbackPanic();
-            }
-""",
-    """            } else if (recordedNumber != x) {
-                if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE && numberOfBytes == 1) {
-                    const long relockDraws = obrienRelockRNGByte((unsigned char) recordedNumber);
-                    if (relockDraws < 0) {
-                        printf(\"O'Brien long-save RNG relock failed for expected value %li after current value %i; continuing salvage.\\n\",
-                               recordedNumber, (int) x);
-                    }
-                } else {
-                    printf(\"Expected RNG output of %li; got %i.\\n\", recordedNumber, (int) x);
-                    playbackPanic();
-                }
-            }
-""",
-    "O'Brien long-save RNG relock failed for expected value",
+    "src/brogue/Items.c",
+    """    rogue.featRecord[FEAT_PURE_WARRIOR] = false;
+    recordApplyItemCommand(cell);
+    return true;
+}""",
+    """    rogue.featRecord[FEAT_PURE_WARRIOR] = false;
+    recordApplyItemCommand(cell);
+    recordKeystroke(target->inventoryLetter, false, false); // v0.2.29 Power Cell target
+    return true;
+}""",
+    "v0.2.29 Power Cell target",
 )
 
 replace_once(
@@ -302,8 +124,8 @@ replace_once(
 )
 
 print("O'Brien Must Survive v0.2.29 applied.")
-print("- stray legacy RNG_CHECK records are treated as audit records, not input")
-print("- substantive RNG is re-locked to recorded one-byte checkpoints with a bounded scan")
-print("- missing legacy checkpoints preserve the next input byte with logical pushback")
-print("- non-O'Brien playback remains strict and unchanged")
+print("- Call Security now records C before its normal turn RNG checkpoint")
+print("- Emergency Power Cell transfers now record the selected target staff")
+print("- production playback remains strict; no RNG relock or checkpoint skipping")
+print("- exact historical 3727-turn repair is handled by repair_legacy_obrien_save.py")
 print("Build with: make -B -j3 bin/brogue")
