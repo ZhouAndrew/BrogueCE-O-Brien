@@ -1,0 +1,68 @@
+name: O'Brien embedded 3727-turn demo
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - demo/embedded-3727-save
+    paths:
+      - 'demo/**'
+      - '.github/workflows/demo-embedded-save.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  materialize-build-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout demo branch
+        uses: actions/checkout@v4
+
+      - name: Materialize and verify exact historical save
+        run: |
+          python3 demo/materialize_save.py
+          test "$(stat -c %s demo/OBrien_3727turn_longsave_backup.broguesave)" = "20507"
+          echo "dadc44db70a6b029e7be9dee422acc96d9a6b9063837c897305c335ee444b76d  demo/OBrien_3727turn_longsave_backup.broguesave" | sha256sum -c -
+
+      - name: Check in materialized binary fixture
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          chmod +x demo/run-demo.sh
+          git add -f demo/OBrien_3727turn_longsave_backup.broguesave demo/run-demo.sh
+          git update-index --chmod=+x demo/run-demo.sh
+          if ! git diff --cached --quiet; then
+            git commit -m "Demo: materialize exact 3727-turn historical save"
+            git push
+          fi
+
+      - name: Install SDL build dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libsdl2-dev libsdl2-image-dev
+
+      - name: Apply O'Brien v0.2.28
+        run: python3 apply_obrien_mod_v0_2_28.py
+
+      - name: Build demo binary
+        run: make -B -j3 bin/brogue
+
+      - name: Smoke-test binary identity
+        run: ./bin/brogue --version
+
+      - name: Package runnable demo
+        run: |
+          mkdir -p artifact/bin artifact/demo
+          cp bin/brogue artifact/bin/
+          cp -a bin/assets artifact/bin/
+          cp demo/OBrien_3727turn_longsave_backup.broguesave artifact/demo/
+          cp demo/run-demo.sh artifact/demo/
+          cp demo/README.md artifact/demo/
+          printf '%s\n'             'Run from the artifact root:'             '  ./demo/run-demo.sh'             ''             'This is the historical forensic save, not a repaired save.'             > artifact/README.txt
+
+      - name: Upload demo artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: obrien-v028-embedded-3727-demo
+          path: artifact
