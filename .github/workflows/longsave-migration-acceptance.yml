@@ -3,143 +3,98 @@ name: Long-save production migration acceptance
 on:
   push:
     branches:
+      - master
       - fix/longsave-turn3-replay
     paths:
       - '.github/workflows/longsave-migration-acceptance.yml'
       - 'apply_obrien_mod_v0_2_29.py'
       - 'repair_legacy_obrien_save.py'
+      - 'ci_longsave_resume_probe.py'
+      - 'demo/**'
+  pull_request:
+    paths:
+      - '.github/workflows/longsave-migration-acceptance.yml'
+      - 'apply_obrien_mod_v0_2_29.py'
+      - 'repair_legacy_obrien_save.py'
+      - 'ci_longsave_resume_probe.py'
       - 'demo/**'
   workflow_dispatch:
 
 jobs:
-  migrate-and-verify:
+  migrate-replay-resume:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify exact historical fixture
+      - name: Verify exact historical evidence fixture
         run: |
           python3 demo/materialize_save.py
           test "$(stat -c %s demo/OBrien_3727turn_longsave_backup.broguesave)" = "20507"
           echo "dadc44db70a6b029e7be9dee422acc96d9a6b9063837c897305c335ee444b76d  demo/OBrien_3727turn_longsave_backup.broguesave" | sha256sum -c -
 
-      - name: Deterministically repair missing historical inputs
+      - name: Deterministically repair only the proven missing inputs
         run: |
-          python3 repair_legacy_obrien_save.py             demo/OBrien_3727turn_longsave_backup.broguesave             --output migrated.broguesave
+          python3 repair_legacy_obrien_save.py             demo/OBrien_3727turn_longsave_backup.broguesave             --output migrated.broguesave | tee repair.log
           test "$(stat -c %s migrated.broguesave)" = "20630"
-          test "$(stat -c %s demo/OBrien_3727turn_longsave_backup.broguesave)" = "20507"
-          echo "dadc44db70a6b029e7be9dee422acc96d9a6b9063837c897305c335ee444b76d  demo/OBrien_3727turn_longsave_backup.broguesave" | sha256sum -c -
+          echo "6ec2dd4a57b9dac8015b09cc84004ffd499d5e50a5ef59be162f3b7dae5138c0  migrated.broguesave" | sha256sum -c -
           python3 - <<'PY'
           from pathlib import Path
-          import hashlib
-          p = Path("migrated.broguesave")
-          b = p.read_bytes()
-          print("MIGRATED_SIZE", len(b))
-          print("MIGRATED_SHA256", hashlib.sha256(b).hexdigest())
-          print("MIGRATED_HEADER", b[:16], "variantByte", hex(b[15]),
-                "seed", int.from_bytes(b[16:24], "big"),
-                "turns", int.from_bytes(b[24:28], "big"),
-                "deepest", int.from_bytes(b[28:32], "big"),
-                "length", int.from_bytes(b[32:36], "big"))
+          b = Path("migrated.broguesave").read_bytes()
           assert b[15] == 0xB0
+          assert int.from_bytes(b[16:24], "big") == 436566627
           assert int.from_bytes(b[24:28], "big") == 3727
           assert int.from_bytes(b[28:32], "big") == 14
           assert int.from_bytes(b[32:36], "big") == len(b) == 20630
           PY
+          grep -q 'inserted 37 Call Security C events and 4 Power Cell target events' repair.log
 
-      - name: Apply production v0.2.29
+      - name: Verify repaired migration is idempotent
+        run: |
+          python3 repair_legacy_obrien_save.py migrated.broguesave --output migrated-second-pass.broguesave
+          cmp migrated.broguesave migrated-second-pass.broguesave
+
+      - name: Apply strict production v0.2.29
         run: |
           python3 apply_obrien_mod_v0_2_29.py
           grep -q 'v0.2.29 recording integrity' src/brogue/Monsters.c
           grep -q 'v0.2.29 Call Security record' src/brogue/Monsters.c
           grep -q 'v0.2.29 Power Cell target' src/brogue/Items.c
+          grep -q "O'Brien Must Survive v0.2.29" src/brogue/RogueMain.c
           if grep -q 'OBRIEN_V029_RNG_RELOCK' src/brogue/Recordings.c; then
             echo "experimental RNG salvage leaked into production source" >&2
             exit 1
           fi
 
-      - name: Add terminal-only replay diagnostics
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
+      - name: Add CI-only load/resume probe
+        run: python3 ci_longsave_resume_probe.py
 
-          p = Path("src/brogue/Recordings.c")
-          s = p.read_text(encoding="utf-8")
-
-          old = """static void playbackPanic() {
-
-    if (!rogue.playbackOOS) {"""
-          new = """static void playbackPanic() {
-
-    if (getenv("OBRIEN_MATRIX_DIAG")) {
-        printf("MATRIX_OOS turn=%li depth=%i hp=%i/%i loc=%li len=%lu\\n",
-               rogue.playerTurnNumber, rogue.depthLevel,
-               player.currentHP, player.info.maxHP,
-               recordingLocation, lengthOfPlaybackFile);
-        fflush(stdout);
-        exit(92);
-    }
-
-    if (!rogue.playbackOOS) {"""
-          if old not in s:
-              raise SystemExit("playbackPanic anchor missing")
-          s = s.replace(old, new, 1)
-
-          old = """    if (!rogue.gameHasEnded && !rogue.playbackOOS) {
-        switchToPlaying();
-        recordChar(SAVED_GAME_LOADED);
-    }
-    return true;
-}"""
-          new = """    if (getenv("OBRIEN_MATRIX_DIAG")) {
-        printf("MATRIX_END turn=%li target=%li depth=%i deepest=%i hp=%i/%i ended=%i oos=%i loc=%li len=%lu\\n",
-               rogue.playerTurnNumber, rogue.howManyTurns,
-               rogue.depthLevel, rogue.deepestLevel,
-               player.currentHP, player.info.maxHP,
-               rogue.gameHasEnded, rogue.playbackOOS,
-               recordingLocation, lengthOfPlaybackFile);
-        fflush(stdout);
-        exit((rogue.playerTurnNumber == rogue.howManyTurns
-              && player.currentHP > 0
-              && !rogue.gameHasEnded
-              && !rogue.playbackOOS) ? 0 : 93);
-    }
-
-    if (!rogue.gameHasEnded && !rogue.playbackOOS) {
-        switchToPlaying();
-        recordChar(SAVED_GAME_LOADED);
-    }
-    return true;
-}"""
-          if old not in s:
-              raise SystemExit("loadSavedGame end anchor missing")
-          p.write_text(s.replace(old, new, 1), encoding="utf-8")
-          PY
-
-      - name: Build production ruleset plus terminal diagnostics
+      - name: Build production ruleset plus CI-only probe
         run: make -B -j3 GRAPHICS=NO bin/brogue
 
-      - name: Replay migrated save strictly from turn 0 to 3727
+      - name: Strictly load 0 -> 3727, switch live, and execute turn 3728
         shell: bash
         run: |
           set -o pipefail
-          OBRIEN_MATRIX_DIAG=1 ./bin/brogue --variant obrien -o migrated.broguesave 2>&1 | tee verify.log
-          grep -q 'MATRIX_END turn=3727 target=3727' verify.log
-          grep -q 'depth=14 deepest=14 hp=40/40 ended=0 oos=0' verify.log
-          grep -q 'loc=20630 len=20630' verify.log
-          if grep -q 'MATRIX_OOS' verify.log; then exit 1; fi
-          if grep -q 'Expected RNG output' verify.log; then exit 1; fi
-          if grep -q 'Unrecognized event type' verify.log; then exit 1; fi
+          mkdir -p /tmp/obrien-longsave-run
+          cp migrated.broguesave /tmp/obrien-longsave-run/repaired.broguesave
+          cd /tmp/obrien-longsave-run
+          OBRIEN_CI_LONGSAVE=1 "$GITHUB_WORKSPACE/bin/brogue"             --variant obrien -o repaired.broguesave 2>&1 | tee replay.log
+          grep -q 'LONGSAVE_RESUMED turn=3727 target=3727 depth=14 deepest=14 hp=40/40 playback=0 recording=1 oos=0' replay.log
+          grep -q 'LONGSAVE_CONTINUED turn=3728 expected=3728' replay.log
+          grep -q 'playback=0 recording=1 oos=0' replay.log
+          if grep -q 'LONGSAVE_OOS' replay.log; then exit 1; fi
+          if grep -q 'Expected RNG output' replay.log; then exit 1; fi
+          if grep -q 'Unrecognized event type' replay.log; then exit 1; fi
 
-      - name: Verify migration is idempotent on repaired file
+      - name: Prove historical evidence stayed untouched
         run: |
-          cp migrated.broguesave migrated-before-second-pass.broguesave
-          python3 repair_legacy_obrien_save.py migrated.broguesave --output migrated-second-pass.broguesave
-          cmp migrated-before-second-pass.broguesave migrated-second-pass.broguesave
+          test "$(stat -c %s demo/OBrien_3727turn_longsave_backup.broguesave)" = "20507"
+          echo "dadc44db70a6b029e7be9dee422acc96d9a6b9063837c897305c335ee444b76d  demo/OBrien_3727turn_longsave_backup.broguesave" | sha256sum -c -
 
       - uses: actions/upload-artifact@v4
         with:
           name: longsave-production-migration-acceptance
           path: |
             migrated.broguesave
-            verify.log
+            repair.log
+            /tmp/obrien-longsave-run/replay.log
