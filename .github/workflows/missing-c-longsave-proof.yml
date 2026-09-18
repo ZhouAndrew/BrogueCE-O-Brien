@@ -1,0 +1,38 @@
+name: Missing-C long-save proof
+
+on:
+  push:
+    branches:
+      - fix/longsave-turn3-replay
+    paths:
+      - 'forensic_missing_c_replay.py'
+      - '.github/workflows/missing-c-longsave-proof.yml'
+      - 'diag_longsave_matrix.py'
+  workflow_dispatch:
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply clean v0.2.28
+        run: python3 apply_obrien_mod_v0_2_28.py
+      - name: Reconstruct historically unrecorded C actions
+        run: python3 forensic_missing_c_replay.py
+      - name: Add strict terminal diagnostics
+        run: python3 diag_longsave_matrix.py
+      - name: Build null-console binary
+        run: make -B -j3 GRAPHICS=NO bin/brogue
+      - name: Replay exact 20507-byte historical save
+        shell: bash
+        run: |
+          set -o pipefail
+          OBRIEN_MATRIX_DIAG=1 ./bin/brogue --variant obrien -o demo/OBrien_3727turn_longsave_backup.broguesave 2>&1 | tee missing-c-proof.log
+          grep -q 'MATRIX_END turn=3727 target=3727' missing-c-proof.log
+          grep -q 'ended=0 oos=0' missing-c-proof.log
+          test "$(grep -c 'OBRIEN C-REPLAY synthetic C' missing-c-proof.log)" = "37"
+          if grep -q 'MATRIX_OOS' missing-c-proof.log; then exit 1; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: missing-c-longsave-proof
+          path: missing-c-proof.log
