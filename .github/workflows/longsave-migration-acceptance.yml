@@ -1,0 +1,99 @@
+name: Long-save production migration acceptance
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/longsave-migration-acceptance.yml'
+      - 'apply_obrien_mod_v0_2_29.py'
+      - 'repair_legacy_obrien_save.py'
+      - 'ci_longsave_resume_probe.py'
+      - 'demo/**'
+  pull_request:
+    paths:
+      - '.github/workflows/longsave-migration-acceptance.yml'
+      - 'apply_obrien_mod_v0_2_29.py'
+      - 'repair_legacy_obrien_save.py'
+      - 'ci_longsave_resume_probe.py'
+      - 'demo/**'
+  workflow_dispatch:
+
+jobs:
+  migrate-replay-resume:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify exact historical evidence fixture
+        run: |
+          python3 demo/materialize_save.py
+          test "$(stat -c %s demo/OBrien_3727turn_longsave_backup.broguesave)" = "20507"
+          echo "dadc44db70a6b029e7be9dee422acc96d9a6b9063837c897305c335ee444b76d  demo/OBrien_3727turn_longsave_backup.broguesave" | sha256sum -c -
+
+      - name: Deterministically repair only the proven missing inputs
+        run: |
+          python3 repair_legacy_obrien_save.py             demo/OBrien_3727turn_longsave_backup.broguesave             --output migrated.broguesave | tee repair.log
+          test "$(stat -c %s migrated.broguesave)" = "20630"
+          echo "6ec2dd4a57b9dac8015b09cc84004ffd499d5e50a5ef59be162f3b7dae5138c0  migrated.broguesave" | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          b = Path("migrated.broguesave").read_bytes()
+          assert b[15] == 0xB0
+          assert int.from_bytes(b[16:24], "big") == 436566627
+          assert int.from_bytes(b[24:28], "big") == 3727
+          assert int.from_bytes(b[28:32], "big") == 14
+          assert int.from_bytes(b[32:36], "big") == len(b) == 20630
+          PY
+          grep -q 'inserted 37 Call Security C events and 4 Power Cell target events' repair.log
+
+      - name: Verify repaired migration is idempotent
+        run: |
+          python3 repair_legacy_obrien_save.py migrated.broguesave --output migrated-second-pass.broguesave
+          cmp migrated.broguesave migrated-second-pass.broguesave
+
+      - name: Apply strict production v0.2.29
+        run: |
+          python3 apply_obrien_mod_v0_2_29.py
+          grep -q 'v0.2.29 recording integrity' src/brogue/Monsters.c
+          grep -q 'v0.2.29 Call Security record' src/brogue/Monsters.c
+          grep -q 'v0.2.29 Power Cell target' src/brogue/Items.c
+          grep -q "O'Brien Must Survive v0.2.29" src/brogue/RogueMain.c
+          if grep -q 'OBRIEN_V029_RNG_RELOCK' src/brogue/Recordings.c; then
+            echo "experimental RNG salvage leaked into production source" >&2
+            exit 1
+          fi
+
+      - name: Add CI-only load/resume probe
+        run: python3 ci_longsave_resume_probe.py
+
+      - name: Build production ruleset plus CI-only probe
+        run: make -B -j3 GRAPHICS=NO bin/brogue
+
+      - name: Strictly load 0 -> 3727, switch live, and execute turn 3728
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p /tmp/obrien-longsave-run
+          cp migrated.broguesave /tmp/obrien-longsave-run/repaired.broguesave
+          cd /tmp/obrien-longsave-run
+          OBRIEN_CI_LONGSAVE=1 "$GITHUB_WORKSPACE/bin/brogue"             --variant obrien -o repaired.broguesave 2>&1 | tee replay.log
+          grep -q 'LONGSAVE_RESUMED turn=3727 target=3727 depth=14 deepest=14 hp=40/40 playback=0 recording=1 oos=0' replay.log
+          grep -q 'LONGSAVE_CONTINUED turn=3728 expected=3728' replay.log
+          grep -q 'playback=0 recording=1 oos=0' replay.log
+          if grep -q 'LONGSAVE_OOS' replay.log; then exit 1; fi
+          if grep -q 'Expected RNG output' replay.log; then exit 1; fi
+          if grep -q 'Unrecognized event type' replay.log; then exit 1; fi
+
+      - name: Prove historical evidence stayed untouched
+        run: |
+          test "$(stat -c %s demo/OBrien_3727turn_longsave_backup.broguesave)" = "20507"
+          echo "dadc44db70a6b029e7be9dee422acc96d9a6b9063837c897305c335ee444b76d  demo/OBrien_3727turn_longsave_backup.broguesave" | sha256sum -c -
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: longsave-production-migration-acceptance
+          path: |
+            migrated.broguesave
+            repair.log
+            /tmp/obrien-longsave-run/replay.log
