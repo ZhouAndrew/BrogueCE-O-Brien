@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
+      - master
       - demo/embedded-3727-save
     paths:
       - 'demo/**'
@@ -16,7 +17,7 @@ jobs:
   materialize-build-package:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout demo branch
+      - name: Checkout sources
         uses: actions/checkout@v4
 
       - name: Materialize and verify exact historical save
@@ -57,9 +58,16 @@ jobs:
           cp bin/brogue artifact/bin/
           cp -a bin/assets artifact/bin/
           cp demo/OBrien_3727turn_longsave_backup.broguesave artifact/demo/
+          cp demo/materialize_save.py artifact/demo/
+          cp demo/save.b64.part* artifact/demo/
           cp demo/run-demo.sh artifact/demo/
           cp demo/README.md artifact/demo/
-          printf '%s\n'             'Run from the artifact root:'             '  ./demo/run-demo.sh'             ''             'This is the historical forensic save, not a repaired save.'             > artifact/README.txt
+          printf '%s\n' \
+            'Run from the artifact root:' \
+            '  ./demo/run-demo.sh' \
+            '' \
+            'This is the historical forensic save, not a repaired save.' \
+            > artifact/README.txt
 
       - name: Upload demo artifact
         uses: actions/upload-artifact@v4
