@@ -1,0 +1,44 @@
+name: Long-save historical replay matrix
+
+on:
+  push:
+    branches:
+      - fix/longsave-turn3-replay
+    paths:
+      - 'diag_longsave_matrix.py'
+      - '.github/workflows/longsave-history-matrix.yml'
+  workflow_dispatch:
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        patch: [20, 21, 22, 23, 24, 25, 26, 27, 28]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply historical O'Brien version
+        run: python3 apply_obrien_mod_v0_2_${{ matrix.patch }}.py
+
+      - name: Inject noninteractive replay diagnostics
+        run: python3 diag_longsave_matrix.py
+
+      - name: Build null-console binary
+        run: make -B -j3 GRAPHICS=NO bin/brogue
+
+      - name: Replay exact embedded 3727-turn save
+        shell: bash
+        run: |
+          set +e
+          OBRIEN_MATRIX_DIAG=1 ./bin/brogue --variant obrien -o demo/OBrien_3727turn_longsave_backup.broguesave > matrix-v${{ matrix.patch }}.log 2>&1
+          code=$?
+          cat matrix-v${{ matrix.patch }}.log
+          echo "MATRIX_EXIT patch=${{ matrix.patch }} code=$code"
+          exit 0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: longsave-matrix-v0.2.${{ matrix.patch }}
+          path: matrix-v${{ matrix.patch }}.log
