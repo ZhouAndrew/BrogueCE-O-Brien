@@ -8,7 +8,6 @@ on:
       - '.github/workflows/longsave-migration-acceptance.yml'
       - 'apply_obrien_mod_v0_2_29.py'
       - 'repair_legacy_obrien_save.py'
-      - 'diag_longsave_matrix.py'
       - 'demo/**'
   workflow_dispatch:
 
@@ -60,7 +59,62 @@ jobs:
           fi
 
       - name: Add terminal-only replay diagnostics
-        run: python3 diag_longsave_matrix.py
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("src/brogue/Recordings.c")
+          s = p.read_text(encoding="utf-8")
+
+          old = """static void playbackPanic() {
+
+    if (!rogue.playbackOOS) {"""
+          new = """static void playbackPanic() {
+
+    if (getenv("OBRIEN_MATRIX_DIAG")) {
+        printf("MATRIX_OOS turn=%li depth=%i hp=%i/%i loc=%li len=%lu\\n",
+               rogue.playerTurnNumber, rogue.depthLevel,
+               player.currentHP, player.info.maxHP,
+               recordingLocation, lengthOfPlaybackFile);
+        fflush(stdout);
+        exit(92);
+    }
+
+    if (!rogue.playbackOOS) {"""
+          if old not in s:
+              raise SystemExit("playbackPanic anchor missing")
+          s = s.replace(old, new, 1)
+
+          old = """    if (!rogue.gameHasEnded && !rogue.playbackOOS) {
+        switchToPlaying();
+        recordChar(SAVED_GAME_LOADED);
+    }
+    return true;
+}"""
+          new = """    if (getenv("OBRIEN_MATRIX_DIAG")) {
+        printf("MATRIX_END turn=%li target=%li depth=%i deepest=%i hp=%i/%i ended=%i oos=%i loc=%li len=%lu\\n",
+               rogue.playerTurnNumber, rogue.howManyTurns,
+               rogue.depthLevel, rogue.deepestLevel,
+               player.currentHP, player.info.maxHP,
+               rogue.gameHasEnded, rogue.playbackOOS,
+               recordingLocation, lengthOfPlaybackFile);
+        fflush(stdout);
+        exit((rogue.playerTurnNumber == rogue.howManyTurns
+              && player.currentHP > 0
+              && !rogue.gameHasEnded
+              && !rogue.playbackOOS) ? 0 : 93);
+    }
+
+    if (!rogue.gameHasEnded && !rogue.playbackOOS) {
+        switchToPlaying();
+        recordChar(SAVED_GAME_LOADED);
+    }
+    return true;
+}"""
+          if old not in s:
+              raise SystemExit("loadSavedGame end anchor missing")
+          p.write_text(s.replace(old, new, 1), encoding="utf-8")
+          PY
 
       - name: Build production ruleset plus terminal diagnostics
         run: make -B -j3 GRAPHICS=NO bin/brogue
