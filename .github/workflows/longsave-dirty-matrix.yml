@@ -1,0 +1,89 @@
+name: Long-save dirty-upgrade replay matrix
+
+on:
+  push:
+    branches:
+      - fix/longsave-turn3-replay
+    paths:
+      - '.github/workflows/longsave-dirty-matrix.yml'
+  workflow_dispatch:
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        sequence:
+          - v23_v24
+          - v23_v24_v25
+          - v23_v24_v25_v26
+          - v23_v24_v25_v26_v27
+          - v23_v24_v25_v26_v27_v28
+          - v21_v22
+          - v21_v22_v23
+          - v21_v22_v23_v24
+          - v20_to_v23
+          - v20_to_v28
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reproduce dirty updater sequence
+        shell: bash
+        run: |
+          set +e
+          case "${{ matrix.sequence }}" in
+            v23_v24) list="23 24" ;;
+            v23_v24_v25) list="23 24 25" ;;
+            v23_v24_v25_v26) list="23 24 25 26" ;;
+            v23_v24_v25_v26_v27) list="23 24 25 26 27" ;;
+            v23_v24_v25_v26_v27_v28) list="23 24 25 26 27 28" ;;
+            v21_v22) list="21 22" ;;
+            v21_v22_v23) list="21 22 23" ;;
+            v21_v22_v23_v24) list="21 22 23 24" ;;
+            v20_to_v23) list="20 21 22 23" ;;
+            v20_to_v28) list="20 21 22 23 24 25 26 27 28" ;;
+          esac
+          : > updater.log
+          for v in $list; do
+            echo "===== APPLY $v =====" | tee -a updater.log
+            python3 "apply_obrien_mod_v0_2_${v}.py" >> updater.log 2>&1
+            echo "exit=$?" | tee -a updater.log
+          done
+          tail -100 updater.log
+
+      - name: Inject noninteractive replay diagnostics
+        run: python3 diag_longsave_matrix.py
+
+      - name: Build null-console binary
+        shell: bash
+        run: |
+          set +e
+          make -B -j3 GRAPHICS=NO bin/brogue > build.log 2>&1
+          code=$?
+          tail -80 build.log
+          echo "BUILD_EXIT=$code"
+          exit 0
+
+      - name: Replay exact embedded save
+        shell: bash
+        run: |
+          set +e
+          if test -x ./bin/brogue; then
+            OBRIEN_MATRIX_DIAG=1 ./bin/brogue --variant obrien -o demo/OBrien_3727turn_longsave_backup.broguesave > replay.log 2>&1
+            code=$?
+          else
+            echo "NO_BINARY" > replay.log
+            code=127
+          fi
+          cat replay.log
+          echo "DIRTY_MATRIX_EXIT sequence=${{ matrix.sequence }} code=$code"
+          exit 0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dirty-${{ matrix.sequence }}
+          path: |
+            updater.log
+            build.log
+            replay.log
