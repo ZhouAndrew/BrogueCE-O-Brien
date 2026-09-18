@@ -1,0 +1,30 @@
+name: Turn3 skip-only probe
+
+on:
+  push:
+    branches:
+      - fix/longsave-turn3-replay
+    paths:
+      - 'forensic_skip53_probe.py'
+      - '.github/workflows/turn3-skip-only.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 apply_obrien_mod_v0_2_28.py
+      - run: python3 forensic_skip53_probe.py
+      - run: make -B -j3 GRAPHICS=NO bin/brogue
+      - name: Run exact historical save
+        shell: bash
+        run: |
+          set +e
+          OBRIEN_SKIP53_DIAG=1 ./bin/brogue --variant obrien -o demo/OBrien_3727turn_longsave_backup.broguesave 2>&1 | tee skip53.log
+          echo "EXIT=$?"
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: skip53-probe
+          path: skip53.log
