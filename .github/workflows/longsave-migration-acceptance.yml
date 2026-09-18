@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - fix/longsave-turn3-replay
     paths:
       - '.github/workflows/longsave-migration-acceptance.yml'
       - 'apply_obrien_mod_v0_2_29.py'
