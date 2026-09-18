@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - fix/longsave-turn3-replay
     paths:
       - 'apply_obrien_mod*.py'
       - 'repair_legacy_obrien_save.py'
