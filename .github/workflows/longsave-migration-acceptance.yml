@@ -1,0 +1,93 @@
+name: Long-save migration acceptance
+
+on:
+  push:
+    branches:
+      - fix/longsave-turn3-replay
+    paths:
+      - '.github/workflows/longsave-migration-acceptance.yml'
+      - 'forensic_reencode_legacy_save.py'
+      - 'forensic_reencode_event_source_fix.py'
+      - 'forensic_migration_nullconsole.py'
+      - 'diag_longsave_matrix.py'
+  workflow_dispatch:
+
+jobs:
+  migrate-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify exact historical fixture
+        run: |
+          test "$(stat -c %s demo/OBrien_3727turn_longsave_backup.broguesave)" = "20507"
+          echo "dadc44db70a6b029e7be9dee422acc96d9a6b9063837c897305c335ee444b76d  demo/OBrien_3727turn_longsave_backup.broguesave" | sha256sum -c -
+
+      - name: Build one-shot migration engine
+        run: |
+          python3 apply_obrien_mod_v0_2_28.py
+          python3 forensic_reencode_legacy_save.py
+          python3 forensic_reencode_event_source_fix.py
+          python3 forensic_migration_nullconsole.py
+          make -B -j3 GRAPHICS=NO bin/brogue
+          cp bin/brogue /tmp/brogue-migrator
+
+      - name: Migrate exact historical save
+        shell: bash
+        run: |
+          set -o pipefail
+          OBRIEN_MIGRATE_OUTPUT="$PWD/migrated.broguesave"             /tmp/brogue-migrator --variant obrien -o demo/OBrien_3727turn_longsave_backup.broguesave             2>&1 | tee migration.log
+          test -s migrated.broguesave
+          grep -q 'MIGRATION_FINAL' migration.log
+          grep -q 'turn=3727' migration.log
+          grep -q 'oos=0' migration.log
+          grep -q 'legacyRuns=3691' migration.log
+          grep -q 'insertedRests=37' migration.log
+
+      - name: Restore clean source tree
+        run: |
+          git reset --hard HEAD
+          git clean -fdx -e migrated.broguesave -e migration.log
+          test -s migrated.broguesave
+
+      - name: Build clean v0.2.28 verifier
+        run: |
+          python3 apply_obrien_mod_v0_2_28.py
+          python3 diag_longsave_matrix.py
+          make -B -j3 GRAPHICS=NO bin/brogue
+
+      - name: Replay migrated save with clean engine
+        shell: bash
+        run: |
+          set -o pipefail
+          OBRIEN_MATRIX_DIAG=1 ./bin/brogue --variant obrien -o migrated.broguesave 2>&1 | tee verify.log
+          grep -q 'MATRIX_END turn=3727 target=3727' verify.log
+          grep -q 'ended=0 oos=0' verify.log
+          if grep -q 'MATRIX_OOS' verify.log; then exit 1; fi
+
+      - name: Inspect migrated header
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          p=Path('migrated.broguesave')
+          b=p.read_bytes()
+          print('MIGRATED_SIZE', len(b))
+          print('MIGRATED_SHA256', hashlib.sha256(b).hexdigest())
+          print('MIGRATED_HEADER', b[:16], 'variantByte', hex(b[15]),
+                'seed', int.from_bytes(b[16:24],'big'),
+                'turns', int.from_bytes(b[24:28],'big'),
+                'deepest', int.from_bytes(b[28:32],'big'),
+                'length', int.from_bytes(b[32:36],'big'))
+          assert b[15] == 0xB0
+          assert int.from_bytes(b[24:28],'big') == 3727
+          assert int.from_bytes(b[32:36],'big') == len(b)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: longsave-migration-acceptance
+          path: |
+            migrated.broguesave
+            migration.log
+            verify.log
