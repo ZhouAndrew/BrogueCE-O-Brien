@@ -28,6 +28,13 @@ Triggers
 - Low-frequency ambient corridor banter can fire roughly every 240 turns while
   O'Brien is above 50% HP. It uses deterministic turn slots rather than RNG and
   adapts to which of Bashir / HSO are currently present.
+- Resource dialogue warns once when the combined Fire / Lightning / Poison reserve
+  becomes low, and again if the primary reserve is completely exhausted. Hysteresis
+  prevents passive recharge from repeatedly retriggering the same warning.
+- HSO reports integrity when crossing 50% and 25%; recovery above 75% rearms the
+  warnings for a future damage cycle.
+- Visible-hostile transitions can produce a short contact / all-clear exchange,
+  with an 80-turn cooldown to prevent line-of-sight flicker from spamming dialogue.
 - Deep-level dialogue triggers at depths 10, 15 and every depth from 20 onward.
 - On player death, exactly one final line is chosen from living crew:
   Bashir first, then an active HSO, otherwise Miles.
