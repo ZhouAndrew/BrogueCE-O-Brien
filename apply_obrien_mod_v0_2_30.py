@@ -337,8 +337,8 @@ replace_once(
 
 replace_once(
     "src/brogue/Monsters.c",
-    '    messageWithColor("Bashir\\'s life signs are critical. Starfleet beams him out for emergency treatment.", &itemMessageColor, 0);',
-    '    obrienBashirSays("Miles, medical emergency. Beam me out!", &badMessageColor);',
+    '''    messageWithColor("Bashir's life signs are critical. Starfleet beams him out for emergency treatment.", &itemMessageColor, 0);''',
+    '''    obrienBashirSays("Miles, medical emergency. Beam me out!", &badMessageColor);''',
     'Miles, medical emergency. Beam me out!',
 )
 
