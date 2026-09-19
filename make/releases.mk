@@ -40,15 +40,3 @@ Brogue.app: bin/brogue
 	cp macos/Info.plist $@/Contents
 	cp bin/brogue $@/Contents/MacOS
 	cp -r macos/Brogue.icns bin/assets $@/Contents/Resources
-
-# Homebrew replaced the real SDL2 formula with sdl2-compat in June 2026 and
-# changed sdl2_image to depend on that compatibility layer. Pin both formulas
-# to the same pre-replacement snapshot so macOS release builds remain native SDL2.
-HOMEBREW_SDL2_SNAPSHOT := e5975f68a637e99650d3e769b2380d7d0598ac09
-
-macos/sdl2.rb:
-	curl -fL 'https://raw.githubusercontent.com/Homebrew/homebrew-core/$(HOMEBREW_SDL2_SNAPSHOT)/Formula/s/sdl2.rb' >$@
-	patch $@ macos/sdl2-deployment-target.patch
-
-macos/sdl2_image.rb:
-	curl -fL 'https://raw.githubusercontent.com/Homebrew/homebrew-core/$(HOMEBREW_SDL2_SNAPSHOT)/Formula/s/sdl2_image.rb' >$@
