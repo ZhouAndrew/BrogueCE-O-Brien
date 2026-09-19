@@ -47,6 +47,10 @@ jobs:
           grep -q 'obrienDepthDialogue();' src/brogue/Monsters.c
           grep -q 'obrienPlayerInjuryDialogue();' src/brogue/Monsters.c
           grep -q 'obrienAmbientDialogue();' src/brogue/Monsters.c
+          grep -q 'obrienResourceDialogue();' src/brogue/Monsters.c
+          grep -q 'obrienCombatTransitionDialogue();' src/brogue/Monsters.c
+          grep -q 'Primary staff reserves depleted' src/brogue/Monsters.c
+          grep -q 'Contact. Hostile presence confirmed.' src/brogue/Monsters.c
           grep -q 'now - obrienDialogueLastAmbientTurn < 240' src/brogue/Monsters.c
           grep -q 'walking toward danger is not preventive medicine' src/brogue/Monsters.c
           grep -q 'obrienDeathDialogue();' src/brogue/RogueMain.c
