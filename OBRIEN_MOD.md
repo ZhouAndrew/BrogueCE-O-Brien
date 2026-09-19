@@ -1,6 +1,12 @@
-# O'Brien Must Survive v0.2.25
+# O'Brien Must Survive v0.2.30
 
 This repository includes a chained updater for **Brogue CE 1.15.1**. Apply the newest updater to a clean source tree; it runs all earlier O'Brien patches in order.
+
+## v0.2.30 dialogue rule
+
+Character dialogue is deliberately limited to exactly three speakers: **Miles O'Brien**, **Bashir**, and the **Security Hologram (HSO)**. Ordinary Brogue messages remain narration. Generic allies, Golems, monsters, summons and other creatures never receive personality dialogue.
+
+The dialogue layer reacts to tactical events and also permits low-frequency ordinary conversation: Bashir medical transport/return, HSO activation/deactivation and status, O'Brien crossing 50% or 25% HP, low primary-staff reserves, HSO integrity crossing 50% or 25%, visible-hostile contact/all-clear transitions, deep-level milestones (10, 15, and every depth from 20 onward), occasional corridor banter roughly every 240 turns while O'Brien is above 50% HP, and one final living-crew line immediately before Brogue's native death sequence. Ambient lines adapt to whether Bashir and/or HSO are currently present. Resource/integrity checks use hysteresis and combat transitions use a cooldown, so they do not chatter around a threshold. The whole layer is deterministic and does not consume substantive RNG or change recording input.
 
 ## v0.2.25 design
 
@@ -153,7 +159,7 @@ Start from a clean checkout and run:
 cd ~/Desktop/BrogueCE-O-Brien-src
 git fetch origin
 git reset --hard origin/master
-python3 apply_obrien_mod_v0_2_25.py
+python3 apply_obrien_mod_v0_2_30.py
 make -B
 ./brogue
 ```

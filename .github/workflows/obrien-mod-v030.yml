@@ -1,0 +1,71 @@
+name: "O'Brien Mod v0.2.30"
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'apply_obrien_mod_v0_2_29.py'
+      - 'apply_obrien_mod_v0_2_30.py'
+      - 'changes/obrien-v0.2.30.md'
+      - '.github/workflows/obrien-mod-v030.yml'
+  pull_request:
+    paths:
+      - 'apply_obrien_mod_v0_2_29.py'
+      - 'apply_obrien_mod_v0_2_30.py'
+      - 'changes/obrien-v0.2.30.md'
+      - '.github/workflows/obrien-mod-v030.yml'
+  workflow_dispatch:
+
+jobs:
+  linux-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev
+
+      - name: Validate updater syntax
+        run: python3 -m py_compile apply_obrien_mod_v0_2_30.py
+
+      - name: Apply O'Brien v0.2.30
+        run: python3 apply_obrien_mod_v0_2_30.py
+
+      - name: Verify three-person dialogue markers
+        run: |
+          grep -q 'v0.2.30 three-person dialogue layer' src/brogue/Monsters.c
+          grep -q 'obrienSay("Miles"' src/brogue/Monsters.c
+          grep -q 'obrienSay("Bashir"' src/brogue/Monsters.c
+          grep -q 'obrienSay("HSO"' src/brogue/Monsters.c
+          test "$(grep -c 'obrienSay("' src/brogue/Monsters.c)" -eq 3
+          grep -q 'strcmp(speaker, "Miles")' src/brogue/Monsters.c
+          grep -q 'strcmp(speaker, "Bashir")' src/brogue/Monsters.c
+          grep -q 'strcmp(speaker, "HSO")' src/brogue/Monsters.c
+          grep -q 'Depth %d. Threat level elevated' src/brogue/Monsters.c
+          grep -q 'Miles! Stay with me!' src/brogue/Monsters.c
+          grep -q 'Critical condition. Medical support unavailable.' src/brogue/Monsters.c
+          grep -q 'Right. That.s not good.' src/brogue/Monsters.c
+          grep -q 'obrienDepthDialogue();' src/brogue/Monsters.c
+          grep -q 'obrienPlayerInjuryDialogue();' src/brogue/Monsters.c
+          grep -q 'obrienAmbientDialogue();' src/brogue/Monsters.c
+          grep -q 'obrienResourceDialogue();' src/brogue/Monsters.c
+          grep -q 'obrienCombatTransitionDialogue();' src/brogue/Monsters.c
+          grep -q 'Primary staff reserves depleted' src/brogue/Monsters.c
+          grep -q 'Contact. Hostile presence confirmed.' src/brogue/Monsters.c
+          grep -q 'now - obrienDialogueLastAmbientTurn < 240' src/brogue/Monsters.c
+          grep -q '|| obrienVisibleThreatPresent())' src/brogue/Monsters.c
+          grep -q 'walking toward danger is not preventive medicine' src/brogue/Monsters.c
+          grep -q 'obrienDeathDialogue();' src/brogue/RogueMain.c
+          grep -q "O'Brien Must Survive v0.2.30" src/brogue/RogueMain.c
+
+      - name: Verify recording-integrity fixes remain
+        run: |
+          grep -q 'v0.2.29 recording integrity' src/brogue/Monsters.c
+          grep -q 'v0.2.29 Call Security record' src/brogue/Monsters.c
+          grep -q 'v0.2.29 Power Cell target' src/brogue/Items.c
+
+      - name: Compile
+        run: make -B -j3 bin/brogue
