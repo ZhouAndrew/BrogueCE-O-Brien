@@ -1,4 +1,4 @@
-name: Forensic full patched source audit
+name: Forensic state trace v0.2.28
 on:
   workflow_dispatch:
   push:
@@ -6,19 +6,24 @@ on:
       - forensic/full-source-audit
     paths:
       - '.github/workflows/forensic-full-source-audit.yml'
+      - 'forensic_state_trace.py'
 jobs:
-  export:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Apply exact O'Brien v0.2.28 tree
         run: python3 apply_obrien_mod_v0_2_28.py
-      - name: Package patched source
+      - name: Apply trace-only diagnostics
+        run: python3 forensic_state_trace.py
+      - name: Build null-console trace binary
+        run: make -B -j3 GRAPHICS=NO CFLAGS='-g -O0' bin/brogue
+      - name: Package
         run: |
           mkdir artifact
-          cp -a src artifact/
-          cp apply_obrien_mod*.py artifact/ 2>/dev/null || true
+          cp bin/brogue artifact/brogue-v028-trace
+          cp forensic_state_trace.py artifact/
       - uses: actions/upload-artifact@v4
         with:
-          name: forensic-full-patched-v028-source
+          name: forensic-v028-state-trace
           path: artifact
