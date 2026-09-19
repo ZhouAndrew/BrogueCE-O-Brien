@@ -1,0 +1,23 @@
+name: Forensic full source audit
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - forensic/full-source-audit
+    paths:
+      - '.github/workflows/forensic-full-source-audit.yml'
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package source
+        run: |
+          mkdir artifact
+          cp -a src artifact/
+          cp apply_obrien_mod*.py artifact/ 2>/dev/null || true
+          cp repair_legacy_obrien_save.py artifact/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forensic-full-source-audit
+          path: artifact
