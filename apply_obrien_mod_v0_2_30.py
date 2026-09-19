@@ -66,6 +66,7 @@ DIALOGUE_RUNTIME = r'''// v0.2.30 three-person dialogue layer.
 // monsters, generic allies, summons or Golems through this system. Native Brogue
 // messages remain narration and are not character speech.
 static unsigned long obrienDialogueLastSeenTurn = 0;
+static unsigned long obrienDialogueLastAmbientTurn = 0;
 static short obrienDialogueLastDepth = 0;
 static short obrienDialogueLastPlayerHP = -1;
 
@@ -96,6 +97,7 @@ static void obrienDialogueResetIfRewound(void) {
     if (rogue.absoluteTurnNumber < obrienDialogueLastSeenTurn
         || (rogue.playerTurnNumber <= 1 && obrienDialogueLastSeenTurn > 1)) {
 
+        obrienDialogueLastAmbientTurn = rogue.absoluteTurnNumber;
         obrienDialogueLastDepth = 0;
         obrienDialogueLastPlayerHP = -1;
     }
@@ -181,6 +183,93 @@ static void obrienPlayerInjuryDialogue(void) {
     }
 
     obrienDialogueLastPlayerHP = newHP;
+}
+
+// Low-frequency corridor chatter. This is deliberately deterministic and
+// state-gated: no RNG calls, no turn cost, and no dialogue flood during critical
+// injury. At most one short exchange fires every 240 turns.
+static void obrienAmbientDialogue(void) {
+    creature *bashir = obrienFindLivingCrew("Bashir");
+    creature *security = obrienFindLivingCrew("Security Hologram");
+    unsigned long now = rogue.absoluteTurnNumber;
+    unsigned long slot;
+
+    if (player.currentHP <= 0 || player.currentHP * 2 <= max(1, player.info.maxHP)) {
+        return;
+    }
+
+    if (obrienDialogueLastAmbientTurn == 0) {
+        obrienDialogueLastAmbientTurn = now;
+        return;
+    }
+
+    if (now < obrienDialogueLastAmbientTurn) {
+        obrienDialogueLastAmbientTurn = now;
+        return;
+    }
+
+    if (now - obrienDialogueLastAmbientTurn < 240) {
+        return;
+    }
+
+    obrienDialogueLastAmbientTurn = now;
+    slot = (rogue.playerTurnNumber / 240) % 6;
+
+    if (bashir != NULL && security != NULL) {
+        switch (slot) {
+            case 0:
+                obrienMilesSays("Tell me we finally found a quiet corridor.", &backgroundMessageColor);
+                obrienHSOSays("No immediate hostile contact detected.", &backgroundMessageColor);
+                break;
+            case 1:
+                obrienBashirSays("Miles, walking toward danger is not preventive medicine.", &backgroundMessageColor);
+                obrienMilesSays("Noted, Doctor.", &backgroundMessageColor);
+                break;
+            case 2:
+                obrienHSOSays("Tactical systems nominal.", &backgroundMessageColor);
+                obrienMilesSays("Best news I've heard all day.", &backgroundMessageColor);
+                break;
+            case 3:
+                obrienMilesSays("Julian, if you say this is fascinating, I'm leaving.", &backgroundMessageColor);
+                obrienBashirSays("I was going to say medically inadvisable.", &backgroundMessageColor);
+                break;
+            case 4:
+                obrienBashirSays("How are you still standing?", &backgroundMessageColor);
+                obrienMilesSays("Practice.", &backgroundMessageColor);
+                break;
+            default:
+                obrienHSOSays("Away-team formation remains acceptable.", &backgroundMessageColor);
+                obrienBashirSays("That is almost reassuring.", &backgroundMessageColor);
+                break;
+        }
+    } else if (bashir != NULL) {
+        if (slot & 1) {
+            obrienBashirSays("Miles, you do realize retreat is a medical option.", &backgroundMessageColor);
+            obrienMilesSays("I'll keep it on the list.", &backgroundMessageColor);
+        } else {
+            obrienMilesSays("Still with me, Julian?", &backgroundMessageColor);
+            obrienBashirSays("Against my better judgment.", &backgroundMessageColor);
+        }
+    } else if (security != NULL) {
+        if (slot & 1) {
+            obrienHSOSays("Tactical systems nominal. Awaiting orders.", &backgroundMessageColor);
+        } else {
+            obrienMilesSays("Keep an eye on the corridor.", &backgroundMessageColor);
+            obrienHSOSays("Already doing so.", &backgroundMessageColor);
+        }
+    } else {
+        switch (slot % 3) {
+            case 0:
+                obrienMilesSays("Quiet. I don't trust quiet.", &backgroundMessageColor);
+                break;
+            case 1:
+                obrienMilesSays("One corridor at a time.", &backgroundMessageColor);
+                break;
+            default:
+                obrienMilesSays("Could be worse. Usually is.", &backgroundMessageColor);
+                break;
+        }
+    }
 }
 
 // Called from gameOver() before Brogue's normal "You die..." / Killed by...
@@ -320,6 +409,7 @@ replace_once(
 
     obrienDepthDialogue();
     obrienPlayerInjuryDialogue();
+    obrienAmbientDialogue();
 }''',
     "obrienDepthDialogue();",
 )
@@ -352,7 +442,7 @@ print("O'Brien Must Survive v0.2.30 applied.")
 print("- dialogue speakers are hard-limited to Miles, Bashir and HSO")
 print("- generic allies, Golems, monsters and summons receive no character dialogue")
 print("- Bashir medical events and HSO deployment/status notices now speak in character")
-print("- deterministic injury and deep-level dialogue added without substantive RNG")
+print("- deterministic injury, deep-level and low-frequency ambient dialogue added without substantive RNG")
 print("- one final living-crew line can fire before Brogue's normal death screen")
 print("- no character dialogue is emitted after the You die / Killed by sequence begins")
 print("Build with: make -B -j3 bin/brogue")
