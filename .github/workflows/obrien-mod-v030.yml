@@ -40,6 +40,7 @@ jobs:
           grep -q 'obrienSay("Miles"' src/brogue/Monsters.c
           grep -q 'obrienSay("Bashir"' src/brogue/Monsters.c
           grep -q 'obrienSay("HSO"' src/brogue/Monsters.c
+          test "$(grep -c 'obrienSay("' src/brogue/Monsters.c)" -eq 3
           grep -q 'Depth %d. Threat level elevated' src/brogue/Monsters.c
           grep -q 'Miles! Stay with me!' src/brogue/Monsters.c
           grep -q 'Critical condition. Medical support unavailable.' src/brogue/Monsters.c
@@ -52,6 +53,7 @@ jobs:
           grep -q 'Primary staff reserves depleted' src/brogue/Monsters.c
           grep -q 'Contact. Hostile presence confirmed.' src/brogue/Monsters.c
           grep -q 'now - obrienDialogueLastAmbientTurn < 240' src/brogue/Monsters.c
+          grep -q '|| obrienVisibleThreatPresent())' src/brogue/Monsters.c
           grep -q 'walking toward danger is not preventive medicine' src/brogue/Monsters.c
           grep -q 'obrienDeathDialogue();' src/brogue/RogueMain.c
           grep -q "O'Brien Must Survive v0.2.30" src/brogue/RogueMain.c
