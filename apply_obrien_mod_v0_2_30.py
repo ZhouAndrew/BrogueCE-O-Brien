@@ -205,7 +205,9 @@ static void obrienResourceDialogue(void) {
     short newIntegrityState = 0;
     char line[COLS * 2];
 
-    for (theItem = packItems->nextItem; theItem != NULL; theItem = theItem->nextItem) {
+    for (theItem = (packItems ? packItems->nextItem : NULL);
+         theItem != NULL;
+         theItem = theItem->nextItem) {
         if ((theItem->category & STAFF)
             && theItem->originDepth == OBRIEN_PRIMARY_STAFF_MARKER
             && (theItem->kind == STAFF_FIRE
@@ -336,7 +338,10 @@ static void obrienAmbientDialogue(void) {
     unsigned long now = rogue.absoluteTurnNumber;
     unsigned long slot;
 
-    if (player.currentHP <= 0 || player.currentHP * 2 <= max(1, player.info.maxHP)) {
+    if (player.currentHP <= 0
+        || player.currentHP * 2 <= max(1, player.info.maxHP)
+        || obrienVisibleThreatPresent()) {
+
         return;
     }
 
