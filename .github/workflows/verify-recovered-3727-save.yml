@@ -1,0 +1,98 @@
+name: Verify recovered 3727-turn O'Brien save
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/recover-3727-save
+    paths:
+      - 'tools/recover_obrien_3727_save.py'
+      - '.github/workflows/verify-recovered-3727-save.yml'
+      - 'demo/OBrien_3727turn_longsave_backup.broguesave'
+
+jobs:
+  clean-v028-load:
+    strategy:
+      fail-fast: false
+      matrix:
+        verifier: [A, B]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout recovery branch
+        uses: actions/checkout@v4
+
+      - name: Reconstruct recovered save
+        run: |
+          python3 tools/recover_obrien_3727_save.py             demo/OBrien_3727turn_longsave_backup.broguesave             recovered.broguesave
+          test "$(stat -c %s recovered.broguesave)" = "20630"
+          echo "6ec2dd4a57b9dac8015b09cc84004ffd499d5e50a5ef59be162f3b7dae5138c0  recovered.broguesave" | sha256sum -c -
+
+      - name: Install GDB
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y gdb
+
+      - name: Apply untouched O'Brien v0.2.28
+        run: python3 apply_obrien_mod_v0_2_28.py
+
+      - name: Build untouched clean v0.2.28 replay engine
+        run: make -B -j3 GRAPHICS=NO CFLAGS='-g -O0' bin/brogue
+
+      - name: Write strict GDB verifier
+        run: |
+          cat > verify.gdb <<'GDB'
+          set pagination off
+          set confirm off
+          set breakpoint pending on
+
+          break playbackPanic
+          commands
+            silent
+            printf "CLEAN_VERIFY_PLAYBACK_PANIC turn=%ld depth=%d hp=%d ended=%d oos=%d\n", rogue.playerTurnNumber, rogue.depthLevel, player.currentHP, rogue.gameHasEnded, rogue.playbackOOS
+            quit 92
+          end
+
+          break switchToPlaying
+          commands
+            silent
+            printf "CLEAN_VERIFY_FINAL turn=%ld depth=%d hp=%d ended=%d oos=%d\n", rogue.playerTurnNumber, rogue.depthLevel, player.currentHP, rogue.gameHasEnded, rogue.playbackOOS
+            if rogue.playerTurnNumber != 3727
+              printf "CLEAN_VERIFY_FAIL bad_turn\n"
+              quit 93
+            end
+            if rogue.depthLevel != 14
+              printf "CLEAN_VERIFY_FAIL bad_depth\n"
+              quit 94
+            end
+            if player.currentHP <= 0
+              printf "CLEAN_VERIFY_FAIL dead_player\n"
+              quit 95
+            end
+            if rogue.gameHasEnded != 0
+              printf "CLEAN_VERIFY_FAIL game_ended\n"
+              quit 96
+            end
+            if rogue.playbackOOS != 0
+              printf "CLEAN_VERIFY_FAIL oos\n"
+              quit 97
+            end
+            printf "CLEAN_VERIFY_PASS\n"
+            quit 0
+          end
+
+          run -o recovered.broguesave
+          GDB
+
+      - name: Independently load recovered save with clean v0.2.28
+        run: |
+          gdb -q -batch -x verify.gdb ./bin/brogue | tee clean-verify-${{ matrix.verifier }}.log
+          grep -q 'CLEAN_VERIFY_PASS' clean-verify-${{ matrix.verifier }}.log
+
+      - name: Upload verification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: recovered-3727-clean-v028-verification-${{ matrix.verifier }}
+          path: |
+            recovered.broguesave
+            clean-verify-${{ matrix.verifier }}.log
+            verify.gdb
