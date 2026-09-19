@@ -67,6 +67,27 @@ rep("src/brogue/Monsters.c",
 "trace C deploy")
 
 rep("src/brogue/Items.c",
+'''    target = promptForItemOfType(STAFF, 0, 0,
+                                 KEYBOARD_LABELS ? "Transfer emergency power to which staff? (a-z; or <esc> to cancel)" : "Transfer emergency power to which staff?",
+                                 true);''',
+'''    if (rogue.playerTurnNumber >= 1880 && rogue.playerTurnNumber <= 1960) {
+        printf("TRACE_CELL turn=%li cell=%c reserve=%i eligible-staffs:", rogue.playerTurnNumber,
+               cell->inventoryLetter, cell->charges);
+        for (item *ti = packItems->nextItem; ti != NULL; ti = ti->nextItem) {
+            if (ti->category & STAFF) {
+                printf(" %c[k=%i ch=%i cap=%i org=%i]", ti->inventoryLetter, ti->kind,
+                       ti->charges, staffChargeCapacity(ti), ti->originDepth);
+            }
+        }
+        printf("\\n");
+        fflush(stdout);
+    }
+    target = promptForItemOfType(STAFF, 0, 0,
+                                 KEYBOARD_LABELS ? "Transfer emergency power to which staff? (a-z; or <esc> to cancel)" : "Transfer emergency power to which staff?",
+                                 true);''',
+"trace power cell target list")
+
+rep("src/brogue/Items.c",
 '''    if (theItem == NULL) {
         return;
     }
