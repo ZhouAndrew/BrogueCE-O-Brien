@@ -46,6 +46,9 @@ jobs:
           grep -q 'Right. That.s not good.' src/brogue/Monsters.c
           grep -q 'obrienDepthDialogue();' src/brogue/Monsters.c
           grep -q 'obrienPlayerInjuryDialogue();' src/brogue/Monsters.c
+          grep -q 'obrienAmbientDialogue();' src/brogue/Monsters.c
+          grep -q 'now - obrienDialogueLastAmbientTurn < 240' src/brogue/Monsters.c
+          grep -q 'walking toward danger is not preventive medicine' src/brogue/Monsters.c
           grep -q 'obrienDeathDialogue();' src/brogue/RogueMain.c
           grep -q "O'Brien Must Survive v0.2.30" src/brogue/RogueMain.c
 
