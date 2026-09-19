@@ -70,7 +70,7 @@ rep("src/brogue/Items.c",
 '''    target = promptForItemOfType(STAFF, 0, 0,
                                  KEYBOARD_LABELS ? "Transfer emergency power to which staff? (a-z; or <esc> to cancel)" : "Transfer emergency power to which staff?",
                                  true);''',
-'''    if (rogue.playerTurnNumber >= 2700 && rogue.playerTurnNumber <= 2850) {
+'''    if (true) {
         printf("TRACE_CELL turn=%li cell=%c reserve=%i eligible-staffs:", rogue.playerTurnNumber,
                cell->inventoryLetter, cell->charges);
         for (item *ti = packItems->nextItem; ti != NULL; ti = ti->nextItem) {
@@ -100,7 +100,7 @@ rep("src/brogue/Items.c",
         return;
     }
 
-    if (rogue.playerTurnNumber >= 2700 && rogue.playerTurnNumber <= 2850) {
+    if (true) {
         printf("TRACE_APPLY turn=%li letter=%c category=%u kind=%i charges=%i ench1=%i ench2=%i origin=%i flags=%lu\\n",
                rogue.playerTurnNumber, theItem->inventoryLetter, theItem->category, theItem->kind,
                theItem->charges, theItem->enchant1, theItem->enchant2, theItem->originDepth,
