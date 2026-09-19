@@ -41,6 +41,9 @@ jobs:
           grep -q 'obrienSay("Bashir"' src/brogue/Monsters.c
           grep -q 'obrienSay("HSO"' src/brogue/Monsters.c
           test "$(grep -c 'obrienSay("' src/brogue/Monsters.c)" -eq 3
+          grep -q 'strcmp(speaker, "Miles")' src/brogue/Monsters.c
+          grep -q 'strcmp(speaker, "Bashir")' src/brogue/Monsters.c
+          grep -q 'strcmp(speaker, "HSO")' src/brogue/Monsters.c
           grep -q 'Depth %d. Threat level elevated' src/brogue/Monsters.c
           grep -q 'Miles! Stay with me!' src/brogue/Monsters.c
           grep -q 'Critical condition. Medical support unavailable.' src/brogue/Monsters.c
