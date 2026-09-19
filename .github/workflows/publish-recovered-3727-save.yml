@@ -1,0 +1,34 @@
+name: Publish recovered 3727-turn O'Brien save
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/recover-3727-save
+    paths:
+      - '.github/workflows/publish-recovered-3727-save.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct exact recovered save
+        run: |
+          python3 tools/recover_obrien_3727_save.py             demo/OBrien_3727turn_longsave_backup.broguesave             demo/OBrien_3727turn_recovered.broguesave
+          test "$(stat -c %s demo/OBrien_3727turn_recovered.broguesave)" = "20630"
+          echo "6ec2dd4a57b9dac8015b09cc84004ffd499d5e50a5ef59be162f3b7dae5138c0  demo/OBrien_3727turn_recovered.broguesave" | sha256sum -c -
+
+      - name: Commit recovered binary fixture
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f demo/OBrien_3727turn_recovered.broguesave
+          if ! git diff --cached --quiet; then
+            git commit -m "Add fully recovered 3727-turn O'Brien save"
+            git push
+          fi
