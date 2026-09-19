@@ -15,7 +15,9 @@ Only these three characters may speak in O'Brien Must Survive:
 Everything else remains silent as a character. Ordinary Brogue narration,
 combat text, item messages and "Killed by..." remain system narration rather
 than character speech. Generic allies, ordinary Golems, monsters and summons
-do not receive personality dialogue.
+do not receive personality dialogue. The shared speech function also enforces a
+runtime whitelist for exactly Miles, Bashir and HSO, so accidental future direct
+calls with another speaker name are discarded.
 
 Triggers
 --------
