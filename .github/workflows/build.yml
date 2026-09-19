@@ -16,7 +16,7 @@ jobs:
         sudo apt install -y libsdl2-dev libsdl2-image-dev
 
     - name: "Checkout sources"
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: "Compile"
       run: |
@@ -38,7 +38,7 @@ jobs:
     runs-on: macos-15-intel
     steps:
     - name: "Checkout sources"
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: "Build native SDL2 dependencies"
       run: |
@@ -86,7 +86,7 @@ jobs:
     runs-on: macos-15
     steps:
     - name: "Checkout sources"
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: "Build native SDL2 dependencies"
       run: |
@@ -134,7 +134,7 @@ jobs:
     runs-on: windows-latest
     steps:
     - name: "Checkout sources"
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: "Install dependencies"
       run: |
