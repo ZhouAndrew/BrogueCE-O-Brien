@@ -1,4 +1,4 @@
-name: Forensic full source audit
+name: Forensic full patched source audit
 on:
   workflow_dispatch:
   push:
@@ -11,13 +11,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Package source
+      - name: Apply exact O'Brien v0.2.28 tree
+        run: python3 apply_obrien_mod_v0_2_28.py
+      - name: Package patched source
         run: |
           mkdir artifact
           cp -a src artifact/
           cp apply_obrien_mod*.py artifact/ 2>/dev/null || true
-          cp repair_legacy_obrien_save.py artifact/ 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         with:
-          name: forensic-full-source-audit
+          name: forensic-full-patched-v028-source
           path: artifact
