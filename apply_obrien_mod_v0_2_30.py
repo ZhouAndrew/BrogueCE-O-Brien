@@ -67,8 +67,12 @@ DIALOGUE_RUNTIME = r'''// v0.2.30 three-person dialogue layer.
 // messages remain narration and are not character speech.
 static unsigned long obrienDialogueLastSeenTurn = 0;
 static unsigned long obrienDialogueLastAmbientTurn = 0;
+static unsigned long obrienDialogueLastCombatLineTurn = 0;
 static short obrienDialogueLastDepth = 0;
 static short obrienDialogueLastPlayerHP = -1;
+static short obrienDialoguePrimaryChargeState = 0;
+static short obrienDialogueHSOIntegrityState = 0;
+static boolean obrienDialogueHadVisibleThreat = false;
 
 static void obrienSay(const char *speaker, const char *line, const color *messageColor) {
     char buf[COLS * 3];
@@ -98,8 +102,12 @@ static void obrienDialogueResetIfRewound(void) {
         || (rogue.playerTurnNumber <= 1 && obrienDialogueLastSeenTurn > 1)) {
 
         obrienDialogueLastAmbientTurn = rogue.absoluteTurnNumber;
+        obrienDialogueLastCombatLineTurn = rogue.absoluteTurnNumber;
         obrienDialogueLastDepth = 0;
         obrienDialogueLastPlayerHP = -1;
+        obrienDialoguePrimaryChargeState = 0;
+        obrienDialogueHSOIntegrityState = 0;
+        obrienDialogueHadVisibleThreat = false;
     }
     obrienDialogueLastSeenTurn = rogue.absoluteTurnNumber;
 }
@@ -183,6 +191,140 @@ static void obrienPlayerInjuryDialogue(void) {
     }
 
     obrienDialogueLastPlayerHP = newHP;
+}
+
+// Resource/status chatter. These checks only read existing state and use
+// hysteresis so passive recharge/repair cannot spam threshold messages.
+static void obrienResourceDialogue(void) {
+    item *theItem;
+    creature *bashir = obrienFindLivingCrew("Bashir");
+    creature *security = obrienFindLivingCrew("Security Hologram");
+    short totalPrimaryCharges = 0;
+    short primaryStaffCount = 0;
+    short newChargeState = 0;
+    short newIntegrityState = 0;
+    char line[COLS * 2];
+
+    for (theItem = packItems->nextItem; theItem != NULL; theItem = theItem->nextItem) {
+        if ((theItem->category & STAFF)
+            && theItem->originDepth == OBRIEN_PRIMARY_STAFF_MARKER
+            && (theItem->kind == STAFF_FIRE
+                || theItem->kind == STAFF_LIGHTNING
+                || theItem->kind == STAFF_POISON)) {
+
+            totalPrimaryCharges += max(0, theItem->charges);
+            primaryStaffCount++;
+        }
+    }
+
+    if (primaryStaffCount > 0) {
+        if (totalPrimaryCharges == 0) {
+            newChargeState = 2;
+        } else if (totalPrimaryCharges <= primaryStaffCount * 4) {
+            newChargeState = 1;
+        } else if (totalPrimaryCharges >= primaryStaffCount * 8) {
+            newChargeState = 0;
+        } else {
+            newChargeState = obrienDialoguePrimaryChargeState;
+        }
+
+        if (newChargeState > obrienDialoguePrimaryChargeState) {
+            if (newChargeState == 2) {
+                if (security != NULL) {
+                    obrienHSOSays("Primary staff reserves depleted.", &badMessageColor);
+                } else {
+                    obrienMilesSays("That's the last charge gone.", &badMessageColor);
+                }
+            } else {
+                snprintf(line, sizeof(line),
+                         "Primary staff reserve is low: %d charge%s remaining.",
+                         totalPrimaryCharges, totalPrimaryCharges == 1 ? "" : "s");
+                if (security != NULL) {
+                    obrienHSOSays(line, &itemMessageColor);
+                } else if (bashir != NULL) {
+                    obrienBashirSays("Miles, your weapons are running low.", &itemMessageColor);
+                } else {
+                    obrienMilesSays(line, &itemMessageColor);
+                }
+            }
+        }
+        obrienDialoguePrimaryChargeState = newChargeState;
+    }
+
+    if (security != NULL && security->info.maxHP > 0) {
+        if (security->currentHP * 4 <= security->info.maxHP) {
+            newIntegrityState = 2;
+        } else if (security->currentHP * 2 <= security->info.maxHP) {
+            newIntegrityState = 1;
+        } else if (security->currentHP * 4 >= security->info.maxHP * 3) {
+            newIntegrityState = 0;
+        } else {
+            newIntegrityState = obrienDialogueHSOIntegrityState;
+        }
+
+        if (newIntegrityState > obrienDialogueHSOIntegrityState) {
+            if (newIntegrityState == 2) {
+                obrienHSOSays("Integrity critical. Rear-guard capability degraded.", &badMessageColor);
+            } else {
+                snprintf(line, sizeof(line), "Integrity at %d of %d.", security->currentHP, security->info.maxHP);
+                obrienHSOSays(line, &itemMessageColor);
+            }
+        }
+        obrienDialogueHSOIntegrityState = newIntegrityState;
+    } else {
+        obrienDialogueHSOIntegrityState = 0;
+    }
+}
+
+static boolean obrienVisibleThreatPresent(void) {
+    for (creatureIterator it = iterateCreatures(monsters); hasNextCreature(it);) {
+        creature *monst = nextCreature(&it);
+        if (monst != NULL
+            && monst->currentHP > 0
+            && !(monst->bookkeepingFlags & (MB_IS_DYING | MB_HAS_DIED | MB_CAPTIVE))
+            && monst->creatureState != MONSTER_ALLY
+            && canSeeMonster(monst)) {
+
+            return true;
+        }
+    }
+    return false;
+}
+
+// Short contact / all-clear exchanges. An 80-turn cooldown prevents a doorway
+// or flickering line-of-sight from becoming a dialogue machine gun.
+static void obrienCombatTransitionDialogue(void) {
+    creature *bashir = obrienFindLivingCrew("Bashir");
+    creature *security = obrienFindLivingCrew("Security Hologram");
+    boolean threat = obrienVisibleThreatPresent();
+    unsigned long now = rogue.absoluteTurnNumber;
+
+    if (threat != obrienDialogueHadVisibleThreat
+        && (obrienDialogueLastCombatLineTurn == 0
+            || now < obrienDialogueLastCombatLineTurn
+            || now - obrienDialogueLastCombatLineTurn >= 80)) {
+
+        if (threat) {
+            if (security != NULL) {
+                obrienHSOSays("Contact. Hostile presence confirmed.", &itemMessageColor);
+            } else if (bashir != NULL) {
+                obrienBashirSays("Miles, we've got company.", &itemMessageColor);
+            } else {
+                obrienMilesSays("Here we go.", &itemMessageColor);
+            }
+        } else {
+            if (security != NULL) {
+                obrienHSOSays("Immediate threat cleared.", &backgroundMessageColor);
+            } else if (bashir != NULL) {
+                obrienBashirSays("For the moment, nobody is trying to kill us.", &backgroundMessageColor);
+            } else {
+                obrienMilesSays("That's one problem dealt with.", &backgroundMessageColor);
+            }
+        }
+        obrienDialogueLastCombatLineTurn = now;
+    }
+
+    obrienDialogueHadVisibleThreat = threat;
 }
 
 // Low-frequency corridor chatter. This is deliberately deterministic and
@@ -409,6 +551,8 @@ replace_once(
 
     obrienDepthDialogue();
     obrienPlayerInjuryDialogue();
+    obrienResourceDialogue();
+    obrienCombatTransitionDialogue();
     obrienAmbientDialogue();
 }''',
     "obrienDepthDialogue();",
@@ -442,7 +586,7 @@ print("O'Brien Must Survive v0.2.30 applied.")
 print("- dialogue speakers are hard-limited to Miles, Bashir and HSO")
 print("- generic allies, Golems, monsters and summons receive no character dialogue")
 print("- Bashir medical events and HSO deployment/status notices now speak in character")
-print("- deterministic injury, deep-level and low-frequency ambient dialogue added without substantive RNG")
+print("- deterministic injury, resource, combat-transition, deep-level and ambient dialogue added without substantive RNG")
 print("- one final living-crew line can fire before Brogue's normal death screen")
 print("- no character dialogue is emitted after the You die / Killed by sequence begins")
 print("Build with: make -B -j3 bin/brogue")
