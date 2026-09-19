@@ -81,6 +81,15 @@ static void obrienSay(const char *speaker, const char *line, const color *messag
         return;
     }
 
+    // Runtime whitelist: even an accidental future direct call cannot make a
+    // Golem, monster, summon or generic ally speak.
+    if (strcmp(speaker, "Miles")
+        && strcmp(speaker, "Bashir")
+        && strcmp(speaker, "HSO")) {
+
+        return;
+    }
+
     snprintf(buf, sizeof(buf), "%s: %s", speaker, line);
     messageWithColor(buf, messageColor ? messageColor : &white, 0);
 }
