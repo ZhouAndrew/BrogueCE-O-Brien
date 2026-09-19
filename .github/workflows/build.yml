@@ -40,31 +40,35 @@ jobs:
     - name: "Checkout sources"
       uses: actions/checkout@v4
 
-    - name: "Prepare pinned SDL2 formulas"
+    - name: "Build native SDL2 dependencies"
       run: |
-        make macos/sdl2.rb macos/sdl2_image.rb
+        bash .github/build-macos-sdl2.sh
 
-    - name: "Compile and install dependencies"
-      env:
-        MACOSX_DEPLOYMENT_TARGET: "10.7"
-        HOMEBREW_NO_AUTO_UPDATE: "1"
+    - name: "Install dylib bundler"
       run: |
-        tap_dir="$(brew --repository local/broguece)"
-        mkdir -p "$tap_dir/Formula"
-        cp macos/sdl2.rb macos/sdl2_image.rb "$tap_dir/Formula/"
-        brew install --build-from-source local/broguece/sdl2
-        brew install --build-from-source local/broguece/sdl2_image
-        brew install dylibbundler
+        HOMEBREW_NO_AUTO_UPDATE=1 brew install dylibbundler
 
     - name: "Compile"
       run: |
-        make MAC_APP=YES Brogue.app
-      env:
-        MACOSX_DEPLOYMENT_TARGET: "10.7"
+        make MAC_APP=YES SDL_CONFIG="$BROGUE_SDL_PREFIX/bin/sdl2-config" Brogue.app
 
     - name: "Fix and bundle dylib references"
       run: |
-        cd Brogue.app/Contents && dylibbundler -cd -b -x MacOS/brogue
+        cd Brogue.app/Contents
+        dylibbundler -cd -b -x MacOS/brogue
+
+    - name: "Verify bundled app has no staging-prefix dylib references"
+      run: |
+        if otool -L Brogue.app/Contents/MacOS/brogue | grep -F "$BROGUE_SDL_PREFIX"; then
+          echo "Unbundled SDL staging path remains in executable" >&2
+          exit 1
+        fi
+        find Brogue.app/Contents/libs -type f -name '*.dylib' -print0 | while IFS= read -r -d '' dylib; do
+          if otool -L "$dylib" | grep -F "$BROGUE_SDL_PREFIX"; then
+            echo "Unbundled SDL staging path remains in $dylib" >&2
+            exit 1
+          fi
+        done
 
     - name: "Create artifact"
       run: |
@@ -84,31 +88,35 @@ jobs:
     - name: "Checkout sources"
       uses: actions/checkout@v4
 
-    - name: "Prepare pinned SDL2 formulas"
+    - name: "Build native SDL2 dependencies"
       run: |
-        make macos/sdl2.rb macos/sdl2_image.rb
+        bash .github/build-macos-sdl2.sh
 
-    - name: "Compile and install dependencies"
-      env:
-        MACOSX_DEPLOYMENT_TARGET: "10.7"
-        HOMEBREW_NO_AUTO_UPDATE: "1"
+    - name: "Install dylib bundler"
       run: |
-        tap_dir="$(brew --repository local/broguece)"
-        mkdir -p "$tap_dir/Formula"
-        cp macos/sdl2.rb macos/sdl2_image.rb "$tap_dir/Formula/"
-        brew install --build-from-source local/broguece/sdl2
-        brew install --build-from-source local/broguece/sdl2_image
-        brew install dylibbundler
+        HOMEBREW_NO_AUTO_UPDATE=1 brew install dylibbundler
 
     - name: "Compile"
       run: |
-        make MAC_APP=YES Brogue.app
-      env:
-        MACOSX_DEPLOYMENT_TARGET: "10.7"
+        make MAC_APP=YES SDL_CONFIG="$BROGUE_SDL_PREFIX/bin/sdl2-config" Brogue.app
 
     - name: "Fix and bundle dylib references"
       run: |
-        cd Brogue.app/Contents && dylibbundler -cd -b -x MacOS/brogue
+        cd Brogue.app/Contents
+        dylibbundler -cd -b -x MacOS/brogue
+
+    - name: "Verify bundled app has no staging-prefix dylib references"
+      run: |
+        if otool -L Brogue.app/Contents/MacOS/brogue | grep -F "$BROGUE_SDL_PREFIX"; then
+          echo "Unbundled SDL staging path remains in executable" >&2
+          exit 1
+        fi
+        find Brogue.app/Contents/libs -type f -name '*.dylib' -print0 | while IFS= read -r -d '' dylib; do
+          if otool -L "$dylib" | grep -F "$BROGUE_SDL_PREFIX"; then
+            echo "Unbundled SDL staging path remains in $dylib" >&2
+            exit 1
+          fi
+        done
 
     - name: "Create artifact"
       run: |
