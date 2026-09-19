@@ -25,6 +25,9 @@ Triggers
   tactical state where appropriate.
 - O'Brien injury dialogue triggers only when crossing 50% and 25% HP, avoiding
   per-hit chatter.
+- Low-frequency ambient corridor banter can fire roughly every 240 turns while
+  O'Brien is above 50% HP. It uses deterministic turn slots rather than RNG and
+  adapts to which of Bashir / HSO are currently present.
 - Deep-level dialogue triggers at depths 10, 15 and every depth from 20 onward.
 - On player death, exactly one final line is chosen from living crew:
   Bashir first, then an active HSO, otherwise Miles.
