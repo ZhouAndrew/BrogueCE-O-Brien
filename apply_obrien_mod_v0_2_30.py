@@ -91,7 +91,7 @@ replace_once(
 
     const SavedDisplayBuffer rbuf = saveDisplayBuffer();
     gameVariantChoice = printTextBox(textBuf, 20, 7, 45, &white, &black, buttons, 3);""",
-    "v0.2.30 O'Brien lives under Change Mode",
+    "compatibility-preserving wire representation",
 )
 
 replace_once(
@@ -104,7 +104,7 @@ replace_once(
     """    } else if (gameVariantChoice == 2) {
         gameVariant = VARIANT_BULLET_BROGUE;
     } else {""",
-    "v0.2.30 variant selector excludes O'Brien",
+    "compatibility-preserving wire representation",
 )
 
 replace_once(
