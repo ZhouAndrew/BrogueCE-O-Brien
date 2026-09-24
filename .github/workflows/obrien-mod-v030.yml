@@ -1,0 +1,70 @@
+name: "O'Brien Mod v0.2.30"
+
+on:
+  push:
+    branches:
+      - master
+      - 'chatgpt/obrien-v0.2.30'
+    paths:
+      - 'apply_obrien_mod.py'
+      - 'apply_obrien_mod_v0_2_*.py'
+      - 'OBRIEN_MOD.md'
+      - '.github/workflows/obrien-mod-v030.yml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'apply_obrien_mod.py'
+      - 'apply_obrien_mod_v0_2_*.py'
+      - 'OBRIEN_MOD.md'
+      - '.github/workflows/obrien-mod-v030.yml'
+  workflow_dispatch:
+
+jobs:
+  linux-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev
+
+      - name: Apply O'Brien v0.2.30
+        run: python3 apply_obrien_mod_v0_2_30.py
+
+      - name: Verify v0.2.30 markers
+        run: |
+          grep -q "O'Brien Must Survive v0.2.30" src/brogue/RogueMain.c
+          grep -q 'RECORDING_VARIANT_TAG' src/brogue/Recordings.c
+          grep -q 'VARIANT_OBRIEN_MUST_SURVIVE' src/brogue/Rogue.h
+
+          # UI moved, wire/storage identity did not.
+          grep -q "O'Brien Must Survive" src/brogue/MainMenu.c
+          grep -q 'compatibility-preserving wire representation' src/brogue/MainMenu.c
+          test "$(grep -c "O'Brien Survives" src/brogue/MainMenu.c)" -eq 1
+
+          # Dedicated ally descriptions and safe support-bolt behavior.
+          grep -q 'Bashir is your Starfleet medical officer and ally' src/brogue/Monsters.c
+          grep -q 'beneficial ally-support bolts pass through' src/brogue/Monsters.c
+          grep -q 'obrienSecurityAcceptsBeneficialBolt' src/brogue/Items.c
+          grep -q 'BF_TARGET_ALLIES' src/brogue/Items.c
+          grep -q 'Holographic Security Officer' src/brogue/Monsters.c
+
+          # No fixed caustic-gas resupply; four-shot paralysis magazine instead.
+          grep -q 'OBRIEN_PARALYSIS_GAS_MAGAZINE_QUIVER 61001' src/brogue/Rogue.h
+          grep -q 'POTION_PARALYSIS, 4, 0, anchor' src/brogue/RogueMain.c
+          ! grep -q 'POTION_POISON, 2, 0, anchor' src/brogue/RogueMain.c
+          grep -q 'paralysis-gas canister' src/brogue/Items.c
+          grep -q 'obrienIsParalysisGasMagazine' src/brogue/Items.c
+
+          # Recharge includes wands only in O'Brien-specific paths.
+          test "$(grep -c 'rechargeItems(STAFF | WAND | CHARM)' src/brogue/Items.c)" -ge 2
+          grep -q 'Do not.*WEAPON/ARMOR charges' src/brogue/Items.c
+
+      - name: Reapply updater (idempotence)
+        run: python3 apply_obrien_mod_v0_2_30.py
+
+      - name: Compile
+        run: make -B -j3 bin/brogue
