@@ -74,7 +74,7 @@ replace_once(
     "src/brogue/MainMenu.c",
     """    snprintf(tmpBuf, TEXT_MAX_LENGTH, "%sO'Brien Must Survive%s\\n", goldColorEscape, whiteColorEscape);
     append(textBuf, tmpBuf, TEXT_MAX_LENGTH);
-    append(textBuf, "A Starfleet field-survival variant. Mission supplies arrive by the stairwell; choose what you can carry and keep O'Brien alive.\\n\\n", TEXT_MAX_LENGTH);
+    append(textBuf, "A Starfleet field-survival variant. O'Brien starts mission-ready; auxiliary supplies arrive by the stairwell. Keep him alive.\\n\\n", TEXT_MAX_LENGTH);
 
     brogueButton buttons[4];
     initializeMainMenuButton(&(buttons[0]), "  %sR%sapid Brogue     ", 'r', 'R', NG_NOTHING);
