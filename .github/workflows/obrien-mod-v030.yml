@@ -43,7 +43,7 @@ jobs:
           # UI moved, wire/storage identity did not.
           grep -q "O'Brien Must Survive" src/brogue/MainMenu.c
           grep -q 'compatibility-preserving wire representation' src/brogue/MainMenu.c
-          test "$(grep -c "O'Brien Survives" src/brogue/MainMenu.c)" -eq 1
+          grep -q "%sO%s'Brien Survives" src/brogue/MainMenu.c
 
           # Dedicated ally descriptions and safe support-bolt behavior.
           grep -q 'Bashir is your Starfleet medical officer and ally' src/brogue/Monsters.c
@@ -61,7 +61,7 @@ jobs:
 
           # Recharge includes wands only in O'Brien-specific paths.
           test "$(grep -c 'rechargeItems(STAFF | WAND | CHARM)' src/brogue/Items.c)" -ge 2
-          grep -q 'WEAPON/ARMOR charges' src/brogue/Items.c src/brogue/Items.c
+          grep -q 'WEAPON/ARMOR charges' src/brogue/Items.c
 
       - name: Reapply updater (idempotence)
         run: python3 apply_obrien_mod_v0_2_30.py
