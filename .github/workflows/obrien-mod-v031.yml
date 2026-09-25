@@ -10,6 +10,7 @@ on:
       - 'apply_obrien_mod.py'
       - 'apply_obrien_mod_v0_2_*.py'
       - 'OBRIEN_MOD.md'
+      - 'apply_obrien_forensic.py'
       - '.github/workflows/obrien-mod-v031.yml'
   pull_request:
     branches: [ master ]
@@ -34,6 +35,9 @@ jobs:
 
       - name: Apply O'Brien v0.2.31
         run: python3 apply_obrien_mod_v0_2_31.py
+
+      - name: Apply forensic instrumentation
+        run: python3 apply_obrien_forensic.py
 
       - name: Verify v0.2.31 markers
         run: |
