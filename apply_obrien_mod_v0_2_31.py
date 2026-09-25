@@ -47,12 +47,12 @@ else:
 def replace_once(rel, old, new, marker=None):
     path = ROOT / rel
     text = path.read_text(encoding="utf-8")
+    if marker and marker in text:
+        print(f"already patched {rel}")
+        return
     if old in text:
         path.write_text(text.replace(old, new, 1), encoding="utf-8")
         print(f"patched {rel}")
-        return
-    if marker and marker in text:
-        print(f"already patched {rel}")
         return
     raise SystemExit(f"Cannot patch {rel}: expected compatible v0.2.30 source was not found.")
 
