@@ -1,0 +1,60 @@
+name: "O'Brien Mod v0.2.31"
+
+on:
+  push:
+    branches:
+      - master
+      - 'chatgpt/obrien-v0.2.31'
+    paths:
+      - 'apply_obrien_mod.py'
+      - 'apply_obrien_mod_v0_2_*.py'
+      - 'OBRIEN_MOD.md'
+      - '.github/workflows/obrien-mod-v031.yml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'apply_obrien_mod.py'
+      - 'apply_obrien_mod_v0_2_*.py'
+      - 'OBRIEN_MOD.md'
+      - '.github/workflows/obrien-mod-v031.yml'
+  workflow_dispatch:
+
+jobs:
+  linux-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev
+
+      - name: Apply O'Brien v0.2.31
+        run: python3 apply_obrien_mod_v0_2_31.py
+
+      - name: Verify v0.2.31 markers
+        run: |
+          grep -q "O'Brien Must Survive v0.2.31" src/brogue/RogueMain.c
+          grep -q 'OBRIEN_RULESET_V030            30' src/brogue/Recordings.c
+          grep -q 'OBRIEN_RULESET_V031            31' src/brogue/Recordings.c
+          grep -q 'obrienRulesetVersion = OBRIEN_RULESET_V031' src/brogue/Recordings.c
+
+          # Every first-visited depth from 21 onward receives a Mapping scroll.
+          grep -q 'obrienRulesetAtLeast(31) && depth >= 21' src/brogue/RogueMain.c
+          grep -q 'SCROLL_MAGIC_MAPPING, 1, 0, entryStairs' src/brogue/RogueMain.c
+          grep -q 'Deep Delta-quadrant logistics' src/brogue/RogueMain.c
+
+          # Bashir fabrication is finite-cadence and pack-capacity safe.
+          grep -q 'OBRIEN_BASHIR_STRENGTH_POTION_INTERVAL 2000' src/brogue/Monsters.c
+          grep -q 'POTION_STRENGTH' src/brogue/Monsters.c
+          grep -q 'numberOfItemsInPack() < MAX_PACK_ITEMS' src/brogue/Monsters.c
+          grep -q 'Bashir has prepared a Potion of Strength' src/brogue/Monsters.c
+          grep -q 'obrienRulesetAtLeast(31)' src/brogue/Monsters.c
+
+      - name: Reapply updater (idempotence)
+        run: python3 apply_obrien_mod_v0_2_31.py
+
+      - name: Compile
+        run: make -B -j3 bin/brogue

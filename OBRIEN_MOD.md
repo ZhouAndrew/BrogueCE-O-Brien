@@ -1,8 +1,8 @@
-# O'Brien Must Survive v0.2.30
+# O'Brien Must Survive v0.2.31
 
 This repository includes a chained updater for **Brogue CE 1.15.1**. Apply the newest updater to a clean source tree; it runs all earlier O'Brien patches in order.
 
-## v0.2.30 design
+## v0.2.31 design
 
 - **O'Brien Must Survive now appears under `Play -> Change Mode`** rather than under Change Variant.
 - Internally it deliberately retains the historical `VARIANT_OBRIEN_MUST_SURVIVE` enum value. The v0.2.28 tagged save/recording header is unchanged, so existing tagged O'Brien saves keep the same on-disk representation; legacy untagged saves continue to use the existing migration/explicit-selection path.
@@ -13,6 +13,9 @@ This repository includes a chained updater for **Brogue CE 1.15.1**. Apply the n
 - **v0.2.30** makes beneficial ally-support bolts pass through the Security Hologram normally while hostile reflectable bolts are still reflected.
 - **v0.2.30** removes Starfleet-issued caustic gas, consolidates the allocation into a four-shot paralysis-gas magazine, and extends O'Brien Recharging effects to wands and charms as well as staffs.
 - **v0.2.30** also gives newly started O'Brien missions one **Scroll of Magic Mapping** and one directional **Wand of Negation** as standard issue.
+- **v0.2.31** stages one additional **Scroll of Magic Mapping on every first visit from depth 21 onward** (21, 22, 23, ...), rather than only on the three-depth resupply floors.
+- **v0.2.31** gives Bashir a pharmaceutical fabrication cycle: while he is available, he prepares one identified **Potion of Strength every 2000 turns**. If the pack is full, delivery waits until a slot is available instead of deleting the dose or overfilling the pack.
+- These two new behaviors are gated behind ruleset generation 31. v0.2.30 and older saves retain their original replay behavior and do not receive retroactive maps or Bashir-made Strength potions.
 - To keep historical saves strict-replay compatible, v0.2.30 stores an O'Brien ruleset-generation tag in byte 14 of the existing 36-byte recording header. That byte was zero after the terminated CE 1.15.1 version string in older saves, so pre-v0.2.30 recordings retain their old starting kit and old v0.2.29 gameplay rules during replay; the O'Brien variant ID and all header offsets remain unchanged.
 - **v0.2.25** recharge pacing for the marked Fire / Lightning / Poison staffs remains in force.
 
@@ -163,7 +166,7 @@ Start from a clean checkout and run:
 cd ~/Desktop/BrogueCE-O-Brien-src
 git fetch origin
 git reset --hard origin/master
-python3 apply_obrien_mod_v0_2_30.py
+python3 apply_obrien_mod_v0_2_31.py
 make -B
 ./brogue
 ```
