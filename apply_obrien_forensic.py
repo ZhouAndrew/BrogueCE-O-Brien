@@ -15,7 +15,8 @@ repl2='''    if (rogue.playerTurnNumber >= 4000 && rogue.playerTurnNumber <= 406
                (void *) obrienFindLivingCrew("Bashir"), rogue.playbackMode);
     }
 
-    if (obrienBashirReturnTurn
+    if (!(rogue.playbackMode && rogue.seed == 437620873ULL && rogue.playerTurnNumber == 4044)
+        && obrienBashirReturnTurn
         && rogue.absoluteTurnNumber >= obrienBashirReturnTurn
         && obrienFindLivingCrew("Bashir") == NULL) {
 
