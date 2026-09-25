@@ -191,10 +191,10 @@ insert_before_function_end(
 replace_once(
     "src/brogue/Monsters.c",
     """                "Friendly fire can injure him but cannot make him defect. If critically wounded, "
-                "emergency transport beams him out for treatment; he returns after %d turns.", """,
+                "emergency transport beams him out for treatment; he returns after %d turns.",""",
     """                "Friendly fire can injure him but cannot make him defect. In v0.2.31 missions he "
                 "prepares one Potion of Strength every %d turns while available. If critically wounded, "
-                "emergency transport beams him out for treatment; he returns after %d turns.", """,
+                "emergency transport beams him out for treatment; he returns after %d turns.",""",
     "prepares one Potion of Strength every %d turns",
 )
 
