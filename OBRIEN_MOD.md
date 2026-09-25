@@ -12,6 +12,8 @@ This repository includes a chained updater for **Brogue CE 1.15.1**. Apply the n
 - **v0.2.30** gives Bashir and the Security Hologram dedicated ally examine text instead of inherited hostile MK_YOU/MK_GOLEM combat previews.
 - **v0.2.30** makes beneficial ally-support bolts pass through the Security Hologram normally while hostile reflectable bolts are still reflected.
 - **v0.2.30** removes Starfleet-issued caustic gas, consolidates the allocation into a four-shot paralysis-gas magazine, and extends O'Brien Recharging effects to wands and charms as well as staffs.
+- **v0.2.30** also gives newly started O'Brien missions one **Scroll of Magic Mapping** and one directional **Wand of Negation** as standard issue.
+- To keep historical saves strict-replay compatible, v0.2.30 stores an O'Brien ruleset-generation tag in byte 14 of the existing 36-byte recording header. That byte was zero after the terminated CE 1.15.1 version string in older saves, so pre-v0.2.30 recordings retain their old starting kit and old v0.2.29 gameplay rules during replay; the O'Brien variant ID and all header offsets remain unchanged.
 - **v0.2.25** recharge pacing for the marked Fire / Lightning / Poison staffs remains in force.
 
 ## v0.2.25 primary-staff recharge pacing
@@ -77,6 +79,8 @@ O'Brien begins with the fixed Starfleet mission kit **already in his backpack**:
 - Poison staff: `20/20` storage, `+3` effect strength, v0.2.25 tuned passive recharge pacing
 - Blinking staff: `10/10`, capped at 20 spaces in this variant
 - Tunneling staff: `3/3`
+- **Scroll of Magic Mapping**: one standard-issue map for newly started v0.2.30 missions
+- **Wand of Negation**: one native directional anti-magic weapon, with Brogue's normal wand charge generation and v0.2.30 Recharging support
 - Three separate **Starfleet Emergency Power Cells**, each `20/20`
 - One native **Recharging charm +3**, initially ready
 - Ring of Regeneration: `+3`, automatically equipped
@@ -143,7 +147,7 @@ Each periodic cache contains:
 - 1 x **paralysis-gas magazine with 4 canisters**
 - 2 x confusion-gas potions
 
-Starfleet fixed resupply no longer issues caustic/poison gas. The paralysis canisters use a javelin-style magazine marker: the whole issued stack occupies one pack slot, throwing consumes one canister at a time, and dropping the magazine drops it as a unit. Ordinary dungeon caustic-gas items are not deleted or renumbered, so old saves that already contain them remain valid. Random dungeon generation is otherwise unchanged.
+Starfleet fixed resupply no longer issues caustic/poison gas in newly started v0.2.30 missions. Historical pre-v0.2.30 recordings reconstruct their original poison/paralysis/confusion cache layout for replay compatibility. The paralysis canisters use a javelin-style magazine marker: the whole issued stack occupies one pack slot, throwing consumes one canister at a time, and dropping the magazine drops it as a unit. Ordinary dungeon caustic-gas items are not deleted or renumbered, so old saves that already contain them remain valid. Random dungeon generation is otherwise unchanged.
 
 The gas allocation remains finite battlefield-control support; no incineration potion is supplied because the Fire staff remains the ignition source. Fire Immunity and Invisibility are not fixed DS9-cache supplies, and Haste is no longer supplied as a fixed self-buff potion. Those items can still appear through normal Brogue generation.
 
