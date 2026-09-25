@@ -10,9 +10,13 @@ There are two supported migrations:
    keystrokes and four missing Emergency Power Cell target keystrokes proven by
    exhaustive replay. Existing RNG_CHECK bytes and all existing input bytes are
    preserved in order; only the header file-length field is updated.
+3. Bashir recovery-boundary compatibility tagging (v0.2.32): with
+   --bashir-recovery-delay-compat, set one spare header flag telling v0.2.32+
+   playback to rematerialize Bashir on the following input boundary. The event
+   stream, RNG_CHECK bytes, seed, turn count and file length are untouched.
 
-The exact repair is intentionally hash-locked. Unknown recordings are never
-subjected to guessed event insertion.
+The exact 3727-turn event insertion remains hash-locked. The v0.2.32 header
+compatibility flag is opt-in and validates that the recording is O'Brien.
 """
 
 from __future__ import annotations
@@ -24,6 +28,8 @@ import shutil
 import sys
 
 HEADER_LENGTH = 36
+OBRIEN_COMPAT_HEADER_INDEX = 13
+OBRIEN_COMPAT_DELAY_BASHIR_RETURN = 0x01
 VARIANT_TAG = 0x80
 VARIANT_SHIFT = 4
 VARIANT_MASK = 0x07
@@ -131,6 +137,22 @@ def repair_known_3727_longsave(data: bytes) -> bytes:
     return bytes(out)
 
 
+def add_bashir_recovery_delay_compat(data: bytes) -> bytes:
+    if len(data) < HEADER_LENGTH:
+        raise ValueError("file is shorter than the 36-byte Brogue recording header")
+    header_byte = data[15]
+    if not (header_byte & VARIANT_TAG):
+        raise ValueError("Bashir compatibility tagging requires a variant-tagged O'Brien recording")
+    variant = (header_byte >> VARIANT_SHIFT) & VARIANT_MASK
+    if variant != VARIANT_OBRIEN_MUST_SURVIVE:
+        raise ValueError(
+            f"Bashir compatibility tagging requires O'Brien variant; found variant {variant}"
+        )
+    out = bytearray(data)
+    out[OBRIEN_COMPAT_HEADER_INDEX] |= OBRIEN_COMPAT_DELAY_BASHIR_RETURN
+    return bytes(out)
+
+
 def migrate_bytes(data: bytes) -> bytes:
     if len(data) < HEADER_LENGTH:
         raise ValueError("file is shorter than the 36-byte Brogue recording header")
@@ -172,6 +194,14 @@ def main() -> int:
         type=Path,
         help="output path (default: <name>.obrien-fixed<suffix>)",
     )
+    parser.add_argument(
+        "--bashir-recovery-delay-compat",
+        action="store_true",
+        help=(
+            "set the v0.2.32+ compatibility flag that delays Bashir automatic "
+            "rematerialization by one input boundary; event bytes are unchanged"
+        ),
+    )
     args = parser.parse_args()
 
     src = args.path
@@ -184,6 +214,8 @@ def main() -> int:
     original_digest = sha256(original)
     try:
         repaired = migrate_bytes(original)
+        if args.bashir_recovery_delay_compat:
+            repaired = add_bashir_recovery_delay_compat(repaired)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -202,6 +234,13 @@ def main() -> int:
 
     if repaired == original:
         print(f"already compatible; no byte changes required: {destination}")
+    elif args.bashir_recovery_delay_compat:
+        print(f"tagged O'Brien recording for delayed Bashir recovery compatibility: {destination}")
+        print(
+            f"set header byte {OBRIEN_COMPAT_HEADER_INDEX} flag "
+            f"0x{OBRIEN_COMPAT_DELAY_BASHIR_RETURN:02x}; event stream is unchanged"
+        )
+        print(f"sha256 {original_digest} -> {repaired_digest}")
     elif original_digest == KNOWN_LONGSAVE_SHA256:
         print(f"repaired exact historical 3727-turn O'Brien save: {destination}")
         print(
