@@ -19,6 +19,10 @@ v0.2.30 is a compatibility-preserving UI/logistics/ally-information update:
   armor bookkeeping untouched.
 - Old "Holographic Security Officer" save instances are recognized and normalized
   to "Security Hologram" at runtime.
+- New v0.2.30 games start with one Scroll of Magic Mapping and one directional
+  Wand of Negation. A ruleset-generation byte in the previously zero tail of the
+  recording version field keeps pre-v0.2.30 O'Brien saves on their historical
+  starting kit and historical v0.2.29 gameplay rules during replay.
 """
 
 from pathlib import Path
@@ -65,6 +69,85 @@ def replace_once(rel, old, new, marker=None):
         return
     raise SystemExit(f"Cannot patch {rel}: expected compatible v0.2.29 source was not found.")
 
+
+# ---------------------------------------------------------------------------
+# Save/recording ruleset generation.
+#
+# Header bytes 0..14 are the historical version-string field. CE 1.15.1 ends
+# well before byte 14, so byte 14 is zero in old recordings and remains after
+# the C-string terminator. v0.2.30 stores its O'Brien ruleset generation there
+# without changing the 36-byte header layout, seed offsets or variant id.
+# ---------------------------------------------------------------------------
+
+replace_once(
+    "src/brogue/Recordings.c",
+    "#define RECORDING_MODE_MASK            0x0F",
+    """#define RECORDING_MODE_MASK            0x0F
+
+#define OBRIEN_RULESET_HEADER_INDEX    14
+#define OBRIEN_RULESET_V030            30
+static unsigned char obrienRulesetVersion = OBRIEN_RULESET_V030;
+
+boolean obrienRulesetAtLeast(short version) {
+    return gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
+        && obrienRulesetVersion >= version;
+}""",
+    "OBRIEN_RULESET_V030",
+)
+
+replace_once(
+    "src/brogue/Rogue.h",
+    "    void initRecording(void);",
+    """    void initRecording(void);
+    boolean obrienRulesetAtLeast(short version);""",
+    "boolean obrienRulesetAtLeast(short version);",
+)
+
+replace_once(
+    "src/brogue/Recordings.c",
+    """    for (i = 0; rogue.versionString[i] != '\0'; i++) {
+        c[i] = rogue.versionString[i];
+    }
+    c[15] = RECORDING_VARIANT_TAG""",
+    """    for (i = 0; rogue.versionString[i] != '\0'; i++) {
+        c[i] = rogue.versionString[i];
+    }
+    if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {
+        c[OBRIEN_RULESET_HEADER_INDEX] = obrienRulesetVersion;
+    }
+    c[15] = RECORDING_VARIANT_TAG""",
+    "c[OBRIEN_RULESET_HEADER_INDEX] = obrienRulesetVersion;",
+)
+
+replace_once(
+    "src/brogue/Recordings.c",
+    """        for (i=0; i<15; i++) {
+            versionString[i] = recallChar();
+        }
+        modeVariantByte = recallChar();""",
+    """        for (i=0; i<15; i++) {
+            versionString[i] = recallChar();
+        }
+        obrienRulesetVersion = (unsigned char) versionString[OBRIEN_RULESET_HEADER_INDEX];
+        modeVariantByte = recallChar();""",
+    "obrienRulesetVersion = (unsigned char) versionString[OBRIEN_RULESET_HEADER_INDEX];",
+)
+
+replace_once(
+    "src/brogue/Recordings.c",
+    """    } else {
+        // If present, set the patch version for playing the game.
+        rogue.patchVersion = BROGUE_PATCH;""",
+    """    } else {
+        // Brand-new games use the current ruleset. When a historical save is
+        // loaded and then resumed, playback has already restored its old value
+        // and switchToPlaying() leaves it intact.
+        obrienRulesetVersion = OBRIEN_RULESET_V030;
+
+        // If present, set the patch version for playing the game.
+        rogue.patchVersion = BROGUE_PATCH;""",
+    "Brand-new games use the current ruleset",
+)
 
 # ---------------------------------------------------------------------------
 # UI: expose O'Brien under Change Mode, but retain the historical variant ID.
@@ -194,6 +277,26 @@ replace_once(
 )
 
 # ---------------------------------------------------------------------------
+# New v0.2.30 standard issue. These additions are ruleset-gated because adding
+# generated items at turn zero changes RNG consumption and inventory letters.
+# Old recordings therefore reconstruct the exact pre-v0.2.30 starting pack.
+# ---------------------------------------------------------------------------
+
+replace_once(
+    "src/brogue/RogueMain.c",
+    "    obrienAddMissionItemToPack(STAFF, STAFF_TUNNELING, 3); // v0.2.13 Tunneling in starting pack\n",
+    """    obrienAddMissionItemToPack(STAFF, STAFF_TUNNELING, 3); // v0.2.13 Tunneling in starting pack
+
+    if (obrienRulesetAtLeast(30)) {
+        // One-use map plus a native directional anti-magic weapon.
+        obrienAddMissionItemToPack(SCROLL, SCROLL_MAGIC_MAPPING, 0);
+        obrienAddMissionItemToPack(WAND, WAND_NEGATION, 0);
+    }
+""",
+    "SCROLL_MAGIC_MAPPING, 0",
+)
+
+# ---------------------------------------------------------------------------
 # Paralysis-gas magazine logistics.
 # ---------------------------------------------------------------------------
 
@@ -220,6 +323,7 @@ static boolean itemIsThrowingWeapon(const item *theItem) {""",
 // exactly one canister. Ordinary/random paralysis potions remain ordinary.
 static boolean obrienIsParalysisGasMagazine(const item *theItem) {
     return gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
+        && obrienRulesetAtLeast(30)
         && theItem != NULL
         && (theItem->category & POTION)
         && theItem->kind == POTION_PARALYSIS
@@ -329,7 +433,8 @@ replace_once(
     """    if (quantity > 0) {
         supply->quantity = quantity;
     }
-    if ((category & POTION) && kind == POTION_PARALYSIS) {
+    if (obrienRulesetAtLeast(30)
+        && (category & POTION) && kind == POTION_PARALYSIS) {
         // v0.2.30: issued paralysis gas is a single quiver-style canister magazine.
         supply->quiverNumber = OBRIEN_PARALYSIS_GAS_MAGAZINE_QUIVER;
     }
@@ -342,10 +447,17 @@ replace_once(
     """    obrienPlaceSupplyItem(POTION, POTION_POISON, 2, 0, anchor);
     obrienPlaceSupplyItem(POTION, POTION_PARALYSIS, 2, 0, anchor);
     obrienPlaceSupplyItem(POTION, POTION_CONFUSION, 2, 0, anchor);""",
-    """    // v0.2.30: no Starfleet-issued caustic gas. The former poison allocation
-    // is folded into one four-shot paralysis-gas magazine.
-    obrienPlaceSupplyItem(POTION, POTION_PARALYSIS, 4, 0, anchor);
-    obrienPlaceSupplyItem(POTION, POTION_CONFUSION, 2, 0, anchor);""",
+    """    if (obrienRulesetAtLeast(30)) {
+        // v0.2.30: no Starfleet-issued caustic/poison gas. The former poison
+        // allocation is folded into one four-shot paralysis-gas magazine.
+        obrienPlaceSupplyItem(POTION, POTION_PARALYSIS, 4, 0, anchor);
+        obrienPlaceSupplyItem(POTION, POTION_CONFUSION, 2, 0, anchor);
+    } else {
+        // Historical v0.2.29 layout for old save/recording replay.
+        obrienPlaceSupplyItem(POTION, POTION_POISON, 2, 0, anchor);
+        obrienPlaceSupplyItem(POTION, POTION_PARALYSIS, 2, 0, anchor);
+        obrienPlaceSupplyItem(POTION, POTION_CONFUSION, 2, 0, anchor);
+    }""",
     "one four-shot paralysis-gas magazine",
 )
 
@@ -363,9 +475,13 @@ replace_once(
             break;""",
     """        case CHARM_RECHARGING:
             if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {
-                // Recharge every native rechargeable equipment family. Do not
-                // touch WEAPON/ARMOR charges: those fields are auto-ID counters.
-                rechargeItems(STAFF | WAND | CHARM);
+                if (obrienRulesetAtLeast(30)) {
+                    // Recharge every native rechargeable equipment family. Do not
+                    // touch WEAPON/ARMOR charges: those fields are auto-ID counters.
+                    rechargeItems(STAFF | WAND | CHARM);
+                } else {
+                    rechargeItems(STAFF);
+                }
                 obrienFillEmergencyPowerCells();
             } else {
                 rechargeItems(STAFF);
@@ -380,7 +496,7 @@ replace_once(
             rechargeItems(STAFF | CHARM);
             break;""",
     """        case SCROLL_RECHARGING:
-            if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {
+            if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE && obrienRulesetAtLeast(30)) {
                 rechargeItems(STAFF | WAND | CHARM);
             } else {
                 rechargeItems(STAFF | CHARM);
@@ -404,7 +520,7 @@ replace_once(
                         && theItem->originDepth == OBRIEN_POWER_CELL_MARKER) {
                         sprintf(buf2, "\\n\\nThis Starfleet Emergency Power Cell stores up to %i charge-units. Applying it transfers up to %i units immediately to one selected staff, consuming only the energy actually transferred. It trickle-charges at one unit per %i turns; Wisdom and Reaping do not accelerate it. A Recharging charm or Scroll of Recharging fills it completely.",
                                 OBRIEN_POWER_CELL_CAPACITY, OBRIEN_POWER_CELL_CAPACITY, OBRIEN_POWER_CELL_TRICKLE_TURNS);
-                    } else if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {
+                    } else if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE && obrienRulesetAtLeast(30)) {
                         sprintf(buf2, "\\n\\nWhen used, this Recharging charm restores rechargeable equipment throughout your pack: staffs, wands and charms. It then recharges in %i turns. (If the charm is enchanted, it will recharge in %i turns.)",
                                 charmRechargeDelay(theItem->kind, theItem->enchant1),
                                 charmRechargeDelay(theItem->kind, theItem->enchant1 + enchantMagnitude()));
@@ -471,6 +587,7 @@ replace_once(
     """boolean projectileReflects(creature *attacker, creature *defender) {""",
     """static boolean obrienSecurityAcceptsBeneficialBolt(const creature *defender, const bolt *theBolt) {
     if (gameVariant != VARIANT_OBRIEN_MUST_SURVIVE
+        || !obrienRulesetAtLeast(30)
         || defender == NULL
         || theBolt == NULL
         || (strcmp(defender->info.monsterName, "Security Hologram")
@@ -588,4 +705,6 @@ print("- Security reflects hostile bolts but accepts beneficial BF_TARGET_ALLIES
 print("- Starfleet resupply issues no caustic gas; paralysis gas is a four-shot magazine stack")
 print("- O'Brien Recharging charm/scroll effects include staffs, wands and charms")
 print("- legacy Holographic Security Officer save instances are recognized and normalized")
+print("- new games also start with Magic Mapping and a directional Wand of Negation")
+print("- pre-v0.2.30 O'Brien recordings keep ruleset 0 for strict historical replay")
 print("Build with: make -B -j3 bin/brogue")
