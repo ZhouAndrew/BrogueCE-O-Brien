@@ -1,0 +1,88 @@
+name: "O'Brien Mod v0.2.32"
+
+on:
+  push:
+    branches:
+      - master
+      - 'chatgpt/obrien-v0.2.32'
+    paths:
+      - 'apply_obrien_mod.py'
+      - 'apply_obrien_mod_v0_2_*.py'
+      - 'repair_legacy_obrien_save.py'
+      - 'OBRIEN_MOD.md'
+      - '.github/workflows/obrien-mod-v032.yml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'apply_obrien_mod.py'
+      - 'apply_obrien_mod_v0_2_*.py'
+      - 'repair_legacy_obrien_save.py'
+      - 'OBRIEN_MOD.md'
+      - '.github/workflows/obrien-mod-v032.yml'
+  workflow_dispatch:
+
+jobs:
+  linux-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev
+
+      - name: Apply O'Brien v0.2.32
+        run: python3 apply_obrien_mod_v0_2_32.py
+
+      - name: Verify v0.2.32 markers
+        run: |
+          grep -q "O'Brien Must Survive v0.2.32" src/brogue/RogueMain.c
+          grep -q 'OBRIEN_COMPAT_HEADER_INDEX     13' src/brogue/Recordings.c
+          grep -q 'OBRIEN_COMPAT_DELAY_BASHIR_RETURN 0x01' src/brogue/Recordings.c
+          grep -q 'obrienBashirRecoveryUsesDelayedBoundary' src/brogue/Recordings.c
+          grep -q 'obrienBashirRecoveryUsesDelayedBoundary' src/brogue/Monsters.c
+          grep -q 'rogue.absoluteTurnNumber > obrienBashirReturnTurn' src/brogue/Monsters.c
+
+      - name: Verify repair compatibility flag
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('/tmp/compat-test.broguesave')
+          header = bytearray(36)
+          header[:9] = b'CE 1.15.1'
+          header[14] = 30
+          header[15] = 0xB0
+          payload = b'unchanged-event-stream'
+          header[24:28] = (1).to_bytes(4, 'big')
+          header[28:32] = (1).to_bytes(4, 'big')
+          header[32:36] = (36 + len(payload)).to_bytes(4, 'big')
+          p.write_bytes(bytes(header) + payload)
+          PY
+          python3 repair_legacy_obrien_save.py /tmp/compat-test.broguesave             --bashir-recovery-delay-compat --output /tmp/compat-fixed.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          a = Path('/tmp/compat-test.broguesave').read_bytes()
+          b = Path('/tmp/compat-fixed.broguesave').read_bytes()
+          assert b[13] == 0x01
+          assert b[14] == a[14] == 30
+          assert b[15] == a[15] == 0xB0
+          assert a[:13] == b[:13]
+          assert a[14:] == b[14:]
+          PY
+
+      - name: Reapply updater
+        run: python3 apply_obrien_mod_v0_2_32.py
+
+      - name: Compile
+        run: make -B -j3 bin/brogue
+
+      - name: Upload patched Linux binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: obrien-v032-linux
+          path: |
+            bin/brogue
+            bin/assets
+          compression-level: 0
