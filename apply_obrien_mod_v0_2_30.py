@@ -69,6 +69,18 @@ def replace_once(rel, old, new, marker=None):
         return
     raise SystemExit(f"Cannot patch {rel}: expected compatible v0.2.29 source was not found.")
 
+def insert_once_before(rel, anchor, insertion, marker):
+    path = ROOT / rel
+    text = path.read_text(encoding="utf-8")
+    if marker in text:
+        print(f"already patched {rel}")
+        return
+    if anchor in text:
+        path.write_text(text.replace(anchor, insertion + anchor, 1), encoding="utf-8")
+        print(f"patched {rel}")
+        return
+    raise SystemExit(f"Cannot patch {rel}: insertion anchor was not found.")
+
 
 # ---------------------------------------------------------------------------
 # Save/recording ruleset generation.
@@ -312,7 +324,7 @@ replace_once(
     "OBRIEN_PARALYSIS_GAS_MAGAZINE_QUIVER",
 )
 
-replace_once(
+insert_once_before(
     "src/brogue/Items.c",
     """/// @brief Checks if an item is a throwing weapon
 /// @param theItem the item
@@ -330,10 +342,7 @@ static boolean obrienIsParalysisGasMagazine(const item *theItem) {
         && theItem->quiverNumber == OBRIEN_PARALYSIS_GAS_MAGAZINE_QUIVER;
 }
 
-/// @brief Checks if an item is a throwing weapon
-/// @param theItem the item
-/// @return true if the item is a throwing weapon
-static boolean itemIsThrowingWeapon(const item *theItem) {""",
+""",
     "static boolean obrienIsParalysisGasMagazine",
 )
 
@@ -582,7 +591,7 @@ replace_once(
     "Normalize pre-v0.2.26 save instances",
 )
 
-replace_once(
+insert_once_before(
     "src/brogue/Items.c",
     """boolean projectileReflects(creature *attacker, creature *defender) {""",
     """static boolean obrienSecurityAcceptsBeneficialBolt(const creature *defender, const bolt *theBolt) {
@@ -602,7 +611,7 @@ replace_once(
     return (theBolt->flags & BF_TARGET_ALLIES) != 0;
 }
 
-boolean projectileReflects(creature *attacker, creature *defender) {""",
+""",
     "static boolean obrienSecurityAcceptsBeneficialBolt",
 )
 
