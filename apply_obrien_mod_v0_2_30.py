@@ -91,27 +91,26 @@ def insert_once_before(rel, anchor, insertion, marker):
 # without changing the 36-byte header layout, seed offsets or variant id.
 # ---------------------------------------------------------------------------
 
-replace_once(
+insert_once_before(
     "src/brogue/Recordings.c",
-    "#define RECORDING_MODE_MASK            0x0F",
-    """#define RECORDING_MODE_MASK            0x0F
-
-#define OBRIEN_RULESET_HEADER_INDEX    14
+    "static const long keystrokeTable[] =",
+    """#define OBRIEN_RULESET_HEADER_INDEX    14
 #define OBRIEN_RULESET_V030            30
 static unsigned char obrienRulesetVersion = OBRIEN_RULESET_V030;
 
 boolean obrienRulesetAtLeast(short version) {
     return gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
         && obrienRulesetVersion >= version;
-}""",
+}
+
+""",
     "OBRIEN_RULESET_V030",
 )
 
-replace_once(
+insert_once_before(
     "src/brogue/Rogue.h",
-    "    void initRecording(void);",
-    """    void initRecording(void);
-    boolean obrienRulesetAtLeast(short version);""",
+    "    void flushBufferToFile(void);",
+    "    boolean obrienRulesetAtLeast(short version);\n",
     "boolean obrienRulesetAtLeast(short version);",
 )
 
