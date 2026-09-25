@@ -105,11 +105,11 @@ replace_once(
 
 replace_once(
     "src/brogue/Recordings.c",
-    """    for (i = 0; rogue.versionString[i] != '\0'; i++) {
+    """    for (i = 0; rogue.versionString[i] != '\\0'; i++) {
         c[i] = rogue.versionString[i];
     }
     c[15] = RECORDING_VARIANT_TAG""",
-    """    for (i = 0; rogue.versionString[i] != '\0'; i++) {
+    """    for (i = 0; rogue.versionString[i] != '\\0'; i++) {
         c[i] = rogue.versionString[i];
     }
     if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {
