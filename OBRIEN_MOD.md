@@ -1,16 +1,20 @@
-# O'Brien Must Survive v0.2.25
+# O'Brien Must Survive v0.2.30
 
 This repository includes a chained updater for **Brogue CE 1.15.1**. Apply the newest updater to a clean source tree; it runs all earlier O'Brien patches in order.
 
-## v0.2.25 design
+## v0.2.30 design
 
-- **O'Brien Must Survive is a fourth Variant**, alongside Brogue, Rapid Brogue and Bullet Brogue.
-- **Normal / Easy / Wizard remain Modes** and are independent of the selected Variant.
+- **O'Brien Must Survive now appears under `Play -> Change Mode`** rather than under Change Variant.
+- Internally it deliberately retains the historical `VARIANT_OBRIEN_MUST_SURVIVE` enum value. The v0.2.28 tagged save/recording header is unchanged, so existing tagged O'Brien saves keep the same on-disk representation; legacy untagged saves continue to use the existing migration/explicit-selection path.
+- Selecting O'Brien forces normal Brogue difficulty mode; choosing Normal, Easy or Wizard while O'Brien is active returns to ordinary Brogue. Rapid and Bullet remain in Change Variant.
 - O'Brien keeps normal Brogue fragility: the mod improves equipment, information, mobility, logistics and away-team support rather than turning him into a tank.
-- Full tricorder analysis identifies item type, enchantment, runic state and curse state in the O'Brien variant.
-- **v0.2.23** fixed cramped stairhead resupply loss while preserving the protected 3x3 stairhead lane.
-- **v0.2.24** added a real O'Brien-variant `Call Security` command/spell plus emergency medical transport for Bashir.
-- **v0.2.25** keeps the `+3 Ring of Wisdom` but slows passive recharge on O'Brien's marked Fire / Lightning / Poison staffs so their 20-shot batteries no longer recover at near-continuous-fire speed.
+- Full tricorder analysis identifies item type, enchantment, runic state and curse state in the O'Brien mission rules.
+- **v0.2.30** gives Bashir and the Security Hologram dedicated ally examine text instead of inherited hostile MK_YOU/MK_GOLEM combat previews.
+- **v0.2.30** makes beneficial ally-support bolts pass through the Security Hologram normally while hostile reflectable bolts are still reflected.
+- **v0.2.30** removes Starfleet-issued caustic gas, consolidates the allocation into a four-shot paralysis-gas magazine, and extends O'Brien Recharging effects to wands and charms as well as staffs.
+- **v0.2.30** also gives newly started O'Brien missions one **Scroll of Magic Mapping** and one directional **Wand of Negation** as standard issue.
+- To keep historical saves strict-replay compatible, v0.2.30 stores an O'Brien ruleset-generation tag in byte 14 of the existing 36-byte recording header. That byte was zero after the terminated CE 1.15.1 version string in older saves, so pre-v0.2.30 recordings retain their old starting kit and old v0.2.29 gameplay rules during replay; the O'Brien variant ID and all header offsets remain unchanged.
+- **v0.2.25** recharge pacing for the marked Fire / Lightning / Poison staffs remains in force.
 
 ## v0.2.25 primary-staff recharge pacing
 
@@ -28,13 +32,13 @@ The change is instead applied to the three marked primary combat staffs:
 
 This deliberately separates **effect power** from **passive battery recovery**. The primary staffs still hit and scale as +3 staffs, but +3 effect enchantment is no longer also stacked as a second recharge-speed multiplier on top of the +3 Wisdom ring.
 
-## Call Security spell
+## Security Hologram toggle
 
-Press **`C`** in O'Brien Must Survive, or choose **Call Security spell** from the action menu.
+Press **`C`** in O'Brien Must Survive, or choose **Toggle Security Hologram** from the action menu.
 
-`Call Security` is an intrinsic away-team ability, not an inventory charm or staff, so it consumes no backpack slot. It consumes one player turn when a new security hologram is successfully deployed. Only **one** Holographic Security Officer can be active at a time; attempting to call another while one is already active does not consume a turn.
+The Security Hologram is an intrinsic away-team system, not an inventory charm or staff, so it consumes no backpack slot. `C` deploys it while offline and deactivates it while online. A manual shutdown preserves its integrity and emitter charge state for later redeployment. Only one projection can be active at a time.
 
-The deployed **Holographic Security Officer (HSO)** is designed as a mobile rear-guard/bodyguard rather than a replacement player character:
+The deployed **Security Hologram** is designed as a mobile rear-guard/bodyguard rather than a replacement player character:
 
 - permanent **Flying** / levitation behavior;
 - **180 Integrity (HP)** and defense 80;
@@ -44,7 +48,8 @@ The deployed **Holographic Security Officer (HSO)** is designed as a mobile rear
 - **Poison emitter: 20/20** finite tactical charges;
 - both emitter magazines recharge at **1 charge per 35 turns**, a Wisdom-equivalent fast recharge layer;
 - the two emitter systems are treated as enchanted/+3-equivalent tactical staffs, but they are internal holographic systems rather than lootable pack items;
-- **100% bolt reflection** (`MA_REFLECT_100`) provides the anti-magic protection layer without making the HSO physically invulnerable;
+- **hostile reflectable bolts** are returned by the `MA_REFLECT_100` defense layer without making the hologram physically invulnerable;
+- **beneficial ally-support bolts** (healing, haste, protection and other `BF_TARGET_ALLIES` effects) are explicitly allowed through and affect the hologram normally;
 - fire, webs and deep-water penalties are ignored, and the inanimate hologram does not depend on biological breathing/food/medical support;
 - the HSO is permanent Starfleet crew: friendly fire cannot trigger `unAlly()` defection.
 
@@ -74,6 +79,8 @@ O'Brien begins with the fixed Starfleet mission kit **already in his backpack**:
 - Poison staff: `20/20` storage, `+3` effect strength, v0.2.25 tuned passive recharge pacing
 - Blinking staff: `10/10`, capped at 20 spaces in this variant
 - Tunneling staff: `3/3`
+- **Scroll of Magic Mapping**: one standard-issue map for newly started v0.2.30 missions
+- **Wand of Negation**: one native directional anti-magic weapon, with Brogue's normal wand charge generation and v0.2.30 Recharging support
 - Three separate **Starfleet Emergency Power Cells**, each `20/20`
 - One native **Recharging charm +3**, initially ready
 - Ring of Regeneration: `+3`, automatically equipped
@@ -97,9 +104,11 @@ Bashir's marked poison staff uses the same 20-capacity / +3-effect / tuned-recha
 
 ## Native Recharging charm
 
-O'Brien carries a real Brogue **Recharging charm +3**. It uses Brogue's native Recharging-charm mechanics: applying it instantly recharges staffs, then the charm itself enters its normal slow cooldown. At +3 the native curve is about 1664 turns, subject to the game's integer timing.
+O'Brien carries a real Brogue **Recharging charm +3**. In O'Brien Must Survive, applying a Recharging charm restores every native rechargeable equipment family in the pack: **staffs, wands and charms**. The used Recharging charm then enters its normal slow cooldown. At +3 the native curve is about 1664 turns, subject to the game's integer timing.
 
-In O'Brien Must Survive, activating the native Recharging charm also refills the three marked Starfleet Emergency Power Cells to `20/20`. Naturally found Recharging charms work normally and gain the same O'Brien-only full-system extension. Naturally found Scrolls of Recharging remain ordinary one-use scrolls and also refill marked Power Cells.
+Wands use Brogue's native recharge semantics (a Recharging effect adds charge normally); staffs refill through the existing staff-capacity path; charms are readied through the native charm path. Weapon and armor `charges` fields are deliberately not touched because Brogue uses those fields for auto-identification bookkeeping rather than ammunition.
+
+Activating the native Recharging charm also refills the three marked Starfleet Emergency Power Cells to `20/20`. Naturally found Recharging charms gain the same O'Brien-only full-system behavior. Naturally found Scrolls of Recharging remain ordinary one-use scrolls and, in O'Brien mode, also recharge staffs, wands and charms while refilling marked Power Cells.
 
 For the three marked primary combat staffs, Recharging fills the independent battery to `20/20`; it does not reinterpret capacity as enchantment and is unaffected by the v0.2.25 passive-recharge pacing change.
 
@@ -135,9 +144,10 @@ Each periodic cache contains:
 - 1 x ration
 - 1 x fruit
 - 1 x Potion of Levitation
-- 2 x poison-gas potions
-- 2 x paralysis-gas potions
+- 1 x **paralysis-gas magazine with 4 canisters**
 - 2 x confusion-gas potions
+
+Starfleet fixed resupply no longer issues caustic/poison gas in newly started v0.2.30 missions. Historical pre-v0.2.30 recordings reconstruct their original poison/paralysis/confusion cache layout for replay compatibility. The paralysis canisters use a javelin-style magazine marker: the whole issued stack occupies one pack slot, throwing consumes one canister at a time, and dropping the magazine drops it as a unit. Ordinary dungeon caustic-gas items are not deleted or renumbered, so old saves that already contain them remain valid. Random dungeon generation is otherwise unchanged.
 
 The gas allocation remains finite battlefield-control support; no incineration potion is supplied because the Fire staff remains the ignition source. Fire Immunity and Invisibility are not fixed DS9-cache supplies, and Haste is no longer supplied as a fixed self-buff potion. Those items can still appear through normal Brogue generation.
 
@@ -153,7 +163,7 @@ Start from a clean checkout and run:
 cd ~/Desktop/BrogueCE-O-Brien-src
 git fetch origin
 git reset --hard origin/master
-python3 apply_obrien_mod_v0_2_25.py
+python3 apply_obrien_mod_v0_2_30.py
 make -B
 ./brogue
 ```
@@ -164,13 +174,13 @@ No special `CPPFLAGS` are required.
 
 Then select:
 
-`Play -> Change Variant -> O'Brien Must Survive`
+`Play -> Change Mode -> O'Brien Must Survive`
 
-Normal, Easy or Wizard mode can still be selected independently.
+Normal, Easy and Wizard remain available in the same Change Mode dialog. Selecting one of them while O'Brien is active leaves the O'Brien mission rules and returns to ordinary Brogue.
 
 ## Command line
 
-For command-line variant selection, run from the repository root through the launcher:
+For backward compatibility, command-line selection keeps the historical variant spelling even though the title-screen UI now presents O'Brien under Change Mode:
 
 ```bash
 ./brogue --variant obrien_must_survive
