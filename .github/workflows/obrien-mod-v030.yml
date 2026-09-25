@@ -38,6 +38,9 @@ jobs:
         run: |
           grep -q "O'Brien Must Survive v0.2.30" src/brogue/RogueMain.c
           grep -q 'RECORDING_VARIANT_TAG' src/brogue/Recordings.c
+          grep -q 'OBRIEN_RULESET_V030            30' src/brogue/Recordings.c
+          grep -q 'OBRIEN_RULESET_HEADER_INDEX    14' src/brogue/Recordings.c
+          grep -q 'obrienRulesetAtLeast(short version)' src/brogue/Recordings.c
           grep -q 'VARIANT_OBRIEN_MUST_SURVIVE' src/brogue/Rogue.h
 
           # UI moved, wire/storage identity did not.
@@ -52,16 +55,46 @@ jobs:
           grep -q 'BF_TARGET_ALLIES' src/brogue/Items.c
           grep -q 'Holographic Security Officer' src/brogue/Monsters.c
 
-          # No fixed caustic-gas resupply; four-shot paralysis magazine instead.
+          # New ruleset: map + directional negation, no fixed caustic/poison issue.
+          grep -q 'SCROLL_MAGIC_MAPPING, 0' src/brogue/RogueMain.c
+          grep -q 'WAND_NEGATION, 0' src/brogue/RogueMain.c
           grep -q 'OBRIEN_PARALYSIS_GAS_MAGAZINE_QUIVER 61001' src/brogue/Rogue.h
           grep -q 'POTION_PARALYSIS, 4, 0, anchor' src/brogue/RogueMain.c
-          ! grep -q 'POTION_POISON, 2, 0, anchor' src/brogue/RogueMain.c
           grep -q 'paralysis-gas canister' src/brogue/Items.c
           grep -q 'obrienIsParalysisGasMagazine' src/brogue/Items.c
 
-          # Recharge includes wands only in O'Brien-specific paths.
+          # Historical ruleset path is intentionally retained for strict replay.
+          grep -q 'Historical v0.2.29 layout for old save/recording replay' src/brogue/RogueMain.c
+          grep -q 'POTION_POISON, 2, 0, anchor' src/brogue/RogueMain.c
+          grep -q 'obrienRulesetAtLeast(30)' src/brogue/RogueMain.c
+          grep -q 'obrienRulesetAtLeast(30)' src/brogue/Items.c
+
+          # Recharge includes wands only in the new O'Brien ruleset.
           test "$(grep -c 'rechargeItems(STAFF | WAND | CHARM)' src/brogue/Items.c)" -ge 2
           grep -q 'WEAPON/ARMOR charges' src/brogue/Items.c
+
+      - name: Verify legacy migration leaves v0.2.30 ruleset byte unset
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('/tmp/legacy-v030-test.broguesave')
+          header = bytearray(36)
+          header[:9] = b'CE 1.15.1'
+          header[14] = 0
+          header[15] = 0
+          payload = b'event-stream-must-not-change'
+          header[32:36] = (36 + len(payload)).to_bytes(4, 'big')
+          p.write_bytes(bytes(header) + payload)
+          PY
+          python3 repair_legacy_obrien_save.py /tmp/legacy-v030-test.broguesave --output /tmp/legacy-v030-fixed.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          a = Path('/tmp/legacy-v030-test.broguesave').read_bytes()
+          b = Path('/tmp/legacy-v030-fixed.broguesave').read_bytes()
+          assert b[14] == 0, 'legacy save must stay on pre-v0.2.30 ruleset'
+          assert b[15] == 0xB0, 'legacy OBrien variant tag migration changed unexpectedly'
+          assert a[16:] == b[16:], 'legacy event stream changed'
+          PY
 
       - name: Reapply updater (idempotence)
         run: python3 apply_obrien_mod_v0_2_30.py
