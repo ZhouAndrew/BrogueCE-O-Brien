@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - 'chatgpt/obrien-v0.2.31'
+      - 'chatgpt/obrien-save-oos-fix'
     paths:
       - 'apply_obrien_mod.py'
       - 'apply_obrien_mod_v0_2_*.py'
@@ -58,3 +59,12 @@ jobs:
 
       - name: Compile
         run: make -B -j3 bin/brogue
+
+      - name: Upload patched Linux binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: obrien-v031-linux
+          path: |
+            bin/brogue
+            bin/assets
+          compression-level: 0
