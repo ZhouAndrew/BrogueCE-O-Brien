@@ -4,6 +4,9 @@ on:
     # Only run on branches
     branches:
     - '**'
+  pull_request:
+    branches:
+    - 'master'
 
 jobs:
 
