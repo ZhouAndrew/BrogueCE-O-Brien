@@ -886,7 +886,42 @@ void startLevel(short oldLevelNumber, short stairDirection) {
     // O'Brien mode: automatically reveal the layout of every level on arrival.
     // This uses the same semantics as a scroll of magic mapping: terrain is mapped,
     // not directly seen, so creatures and items remain subject to normal visibility.
+#ifdef BROGUE_AUTOMAP_TEST
+    long automapVisibleBefore = 0;
+    for (i = 0; i < DCOLS; i++) {
+        for (j = 0; j < DROWS; j++) {
+            if (pmap[i][j].flags & ANY_KIND_OF_VISIBLE) {
+                automapVisibleBefore++;
+            }
+        }
+    }
+#endif
+
     magicMapCurrentLevel();
+
+#ifdef BROGUE_AUTOMAP_TEST
+    long automapVisibleAfter = 0;
+    for (i = 0; i < DCOLS; i++) {
+        for (j = 0; j < DROWS; j++) {
+            if (pmap[i][j].flags & ANY_KIND_OF_VISIBLE) {
+                automapVisibleAfter++;
+            }
+            if (pmap[i][j].layers[DUNGEON] != GRANITE
+                && !(pmap[i][j].flags & (DISCOVERED | MAGIC_MAPPED))) {
+                fprintf(stderr,
+                        "AUTOMAP TEST FAILURE: unmapped traversable terrain at depth %d, (%d,%d)\n",
+                        rogue.depthLevel, i, j);
+                exit(86);
+            }
+        }
+    }
+    if (automapVisibleBefore != automapVisibleAfter) {
+        fprintf(stderr,
+                "AUTOMAP TEST FAILURE: mapping changed visibility count at depth %d (%ld -> %ld)\n",
+                rogue.depthLevel, automapVisibleBefore, automapVisibleAfter);
+        exit(87);
+    }
+#endif
 
     if (cellHasTerrainFlag(player.loc, T_IS_DEEP_WATER) && !player.status[STATUS_LEVITATING]
         && !cellHasTerrainFlag(player.loc, (T_ENTANGLES | T_OBSTRUCTS_PASSABILITY))) {
