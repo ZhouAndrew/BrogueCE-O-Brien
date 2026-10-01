@@ -234,16 +234,22 @@ jobs:
           # is exercised on restored mapStorage as well as first visits.
           sp = Path("src/brogue/SeedCatalog.c")
           ss = sp.read_text()
-          revisit_anchor = (
-              "        }\\n\\n"
-              "        freeEverything();\\n"
-              "    }\\n"
-              "    return 0;\\n"
-              "}\\n"
-          )
-          assert ss.count(revisit_anchor) == 1, "SeedCatalog printSeedCatalog tail is not unique"
+          fn_start = ss.index("int printSeedCatalog(")
+          fn_open = ss.index("{", fn_start)
+          depth = 0
+          fn_end = None
+          for pos in range(fn_open, len(ss)):
+              if ss[pos] == "{":
+                  depth += 1
+              elif ss[pos] == "}":
+                  depth -= 1
+                  if depth == 0:
+                      fn_end = pos
+                      break
+          assert fn_end is not None, "printSeedCatalog closing brace not found"
+          free_pos = ss.rfind("        freeEverything();", fn_open, fn_end)
+          assert free_pos >= 0, "printSeedCatalog freeEverything call not found"
           revisit = (
-              "        }\\n\\n"
               "#ifdef BROGUE_AUTOMAP_REVISIT_TEST\\n"
               "        if (scanThroughDepth >= 2) {\\n"
               "            short deepestScanned = scanThroughDepth;\\n"
@@ -253,12 +259,8 @@ jobs:
               "            startLevel(deepestScanned - 1, 1);\\n"
               "        }\\n"
               "#endif\\n\\n"
-              "        freeEverything();\\n"
-              "    }\\n"
-              "    return 0;\\n"
-              "}\\n"
           )
-          sp.write_text(ss.replace(revisit_anchor, revisit, 1))
+          sp.write_text(ss[:free_pos] + revisit + ss[free_pos:])
           PY
 
       - name: Compile assertion build
