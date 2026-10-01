@@ -888,10 +888,18 @@ void startLevel(short oldLevelNumber, short stairDirection) {
     // not directly seen, so creatures and items remain subject to normal visibility.
 #ifdef BROGUE_AUTOMAP_TEST
     long automapVisibleBefore = 0;
+    long automapItemsBefore = 0;
+    long automapMonstersBefore = 0;
     for (i = 0; i < DCOLS; i++) {
         for (j = 0; j < DROWS; j++) {
             if (pmap[i][j].flags & ANY_KIND_OF_VISIBLE) {
                 automapVisibleBefore++;
+            }
+            if (pmap[i][j].flags & HAS_ITEM) {
+                automapItemsBefore++;
+            }
+            if (pmap[i][j].flags & (HAS_MONSTER | HAS_DORMANT_MONSTER)) {
+                automapMonstersBefore++;
             }
         }
     }
@@ -901,10 +909,18 @@ void startLevel(short oldLevelNumber, short stairDirection) {
 
 #ifdef BROGUE_AUTOMAP_TEST
     long automapVisibleAfter = 0;
+    long automapItemsAfter = 0;
+    long automapMonstersAfter = 0;
     for (i = 0; i < DCOLS; i++) {
         for (j = 0; j < DROWS; j++) {
             if (pmap[i][j].flags & ANY_KIND_OF_VISIBLE) {
                 automapVisibleAfter++;
+            }
+            if (pmap[i][j].flags & HAS_ITEM) {
+                automapItemsAfter++;
+            }
+            if (pmap[i][j].flags & (HAS_MONSTER | HAS_DORMANT_MONSTER)) {
+                automapMonstersAfter++;
             }
             if (pmap[i][j].layers[DUNGEON] != GRANITE
                 && !(pmap[i][j].flags & (DISCOVERED | MAGIC_MAPPED))) {
@@ -920,6 +936,13 @@ void startLevel(short oldLevelNumber, short stairDirection) {
                 "AUTOMAP TEST FAILURE: mapping changed visibility count at depth %d (%ld -> %ld)\n",
                 rogue.depthLevel, automapVisibleBefore, automapVisibleAfter);
         exit(87);
+    }
+    if (automapItemsBefore != automapItemsAfter || automapMonstersBefore != automapMonstersAfter) {
+        fprintf(stderr,
+                "AUTOMAP TEST FAILURE: mapping changed entity counts at depth %d (items %ld -> %ld, monsters %ld -> %ld)\n",
+                rogue.depthLevel, automapItemsBefore, automapItemsAfter,
+                automapMonstersBefore, automapMonstersAfter);
+        exit(88);
     }
 #endif
 
