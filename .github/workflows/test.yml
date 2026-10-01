@@ -1,13 +1,11 @@
-name: "Test"
+name: "Automap Full Test"
 on:
   pull_request:
-    # Only run on PRs into release
     branches:
-    - 'release'
+    - 'master'
 
 jobs:
-
-  linux-test:
+  regression:
     runs-on: ubuntu-latest
     steps:
     - name: "Install dependencies"
@@ -16,20 +14,49 @@ jobs:
         sudo apt install -y libsdl2-dev libsdl2-image-dev
 
     - name: "Checkout sources"
-      uses: actions/checkout@v3
+      uses: actions/checkout@v5
 
-    - name: "Compile"
+    - name: "Compile normal release configuration"
       run: |
         make -j3 bin/brogue
 
-    - name: "Check that replays still play back"
+    - name: "Compile with automap runtime assertions"
+      run: |
+        make -B -j3 CFLAGS="-DBROGUE_AUTOMAP_TEST" bin/brogue
+
+    - name: "Check all historical replays"
       run: |
         python3 test/run_regression_tests.py --num_processes=3 test/regression_test_ce_v1_14/
         python3 test/run_regression_tests.py --num_processes=3 --extra_args "--variant rapid_brogue" test/regression_test_rb_v1_6/
         python3 test/run_regression_tests.py --num_processes=3 --extra_args "--variant bullet_brogue" test/regression_test_bb_v1_1/
 
-    - name: "Check that seed catalogs are unchanged"
+    - name: "Check seed catalogs remain unchanged"
       run: |
         python3 test/compare_seed_catalog.py test/seed_catalogs/seed_catalog_brogue.txt 40
         python3 test/compare_seed_catalog.py --extra_args "--variant rapid_brogue" test/seed_catalogs/seed_catalog_rapid_brogue.txt 10
         python3 test/compare_seed_catalog.py --extra_args "--variant bullet_brogue" test/seed_catalogs/seed_catalog_bullet_brogue.txt 5
+
+  sanitizer:
+    runs-on: ubuntu-latest
+    steps:
+    - name: "Checkout sources"
+      uses: actions/checkout@v5
+
+    - name: "Compile null-console ASan/UBSan build"
+      run: |
+        make -B -j3 GRAPHICS=NO CFLAGS="-DBROGUE_AUTOMAP_TEST -fsanitize=address,undefined -fno-omit-frame-pointer" LDLIBS="-fsanitize=address,undefined" bin/brogue
+
+    - name: "Sanitizer seed-generation smoke test"
+      env:
+        ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+        UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+      run: |
+        ./bin/brogue --print-seed-catalog 1 5 15 >/tmp/seed-catalog.txt
+        test -s /tmp/seed-catalog.txt
+
+    - name: "Sanitizer replay regression"
+      env:
+        ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+        UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+      run: |
+        python3 test/run_regression_tests.py --num_processes=1 test/regression_test_ce_v1_14/
