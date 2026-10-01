@@ -92,6 +92,36 @@ def insert_before_function_end(rel, signature, insertion, marker):
     raise SystemExit(f"Cannot patch {rel}: closing brace for {signature!r} was not found.")
 
 
+def insert_after_function_end(rel, signature, insertion, marker):
+    path = ROOT / rel
+    text = path.read_text(encoding="utf-8")
+    if marker in text:
+        print(f"already patched {rel}")
+        return
+
+    start = text.find(signature)
+    if start < 0:
+        raise SystemExit(f"Cannot patch {rel}: function {signature!r} was not found.")
+    brace = text.find("{", start)
+    if brace < 0:
+        raise SystemExit(f"Cannot patch {rel}: opening brace for {signature!r} was not found.")
+
+    depth = 0
+    i = brace
+    while i < len(text):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                text = text[:i + 1] + insertion + text[i + 1:]
+                path.write_text(text, encoding="utf-8")
+                print(f"patched {rel}")
+                return
+        i += 1
+    raise SystemExit(f"Cannot patch {rel}: closing brace for {signature!r} was not found.")
+
+
 DIALOGUE_RUNTIME = r'''// v0.2.33 three-person dialogue layer.
 //
 // Character speech is intentionally closed over exactly three wrappers:
@@ -484,36 +514,10 @@ void obrienDeathDialogue(void) {
 }
 '''
 
-replace_once(
+insert_after_function_end(
     "src/brogue/Monsters.c",
-    '''static creature *obrienFindLivingCrew(const char *name) {
-    for (creatureIterator it = iterateCreatures(monsters); hasNextCreature(it);) {
-        creature *monst = nextCreature(&it);
-        if (monst != NULL
-            && monst->currentHP > 0
-            && !(monst->bookkeepingFlags & (MB_IS_DYING | MB_HAS_DIED))
-            && !strcmp(monst->info.monsterName, name)) {
-
-            return monst;
-        }
-    }
-    return NULL;
-}
-''',
-    '''static creature *obrienFindLivingCrew(const char *name) {
-    for (creatureIterator it = iterateCreatures(monsters); hasNextCreature(it);) {
-        creature *monst = nextCreature(&it);
-        if (monst != NULL
-            && monst->currentHP > 0
-            && !(monst->bookkeepingFlags & (MB_IS_DYING | MB_HAS_DIED))
-            && !strcmp(monst->info.monsterName, name)) {
-
-            return monst;
-        }
-    }
-    return NULL;
-}
-''' + DIALOGUE_RUNTIME,
+    "static creature *obrienFindLivingCrew(const char *name)",
+    "\n" + DIALOGUE_RUNTIME,
     "v0.2.33 three-person dialogue layer",
 )
 
