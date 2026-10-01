@@ -6953,6 +6953,38 @@ static void magicMapCell(short x, short y) {
     }
 }
 
+void magicMapCurrentLevel(void) {
+    short i, j;
+
+    // Match the native scroll-of-magic-mapping behavior: reveal secret terrain
+    // as mapped terrain without treating it as directly explored.
+    for (i = 0; i < DCOLS; i++) {
+        for (j = 0; j < DROWS; j++) {
+            if (cellHasTMFlag((pos){ i, j }, TM_IS_SECRET)) {
+                discover(i, j);
+                magicMapCell(i, j);
+                pmap[i][j].flags &= ~(STABLE_MEMORY | DISCOVERED);
+            }
+        }
+    }
+
+    for (i = 0; i < DCOLS; i++) {
+        for (j = 0; j < DROWS; j++) {
+            if (!(pmap[i][j].flags & DISCOVERED) && pmap[i][j].layers[DUNGEON] != GRANITE) {
+                magicMapCell(i, j);
+            }
+        }
+    }
+
+    for (i = 0; i < DCOLS; i++) {
+        for (j = 0; j < DROWS; j++) {
+            if (!(cellHasTerrainFlag((pos){ i, j }, T_IS_DF_TRAP))) {
+                pmap[i][j].flags |= KNOWN_TO_BE_TRAP_FREE;
+            }
+        }
+    }
+}
+
 static boolean uncurse( item *theItem ) {
     if (theItem->flags & ITEM_CURSED) {
         theItem->flags &= ~ITEM_CURSED;
@@ -7151,29 +7183,7 @@ boolean readScroll(item *theItem) {
         case SCROLL_MAGIC_MAPPING:
             confirmMessages();
             messageWithColor("this scroll has a map on it!", &itemMessageColor, 0);
-            for (i=0; i<DCOLS; i++) {
-                for (j=0; j<DROWS; j++) {
-                    if (cellHasTMFlag((pos){ i, j }, TM_IS_SECRET)) {
-                        discover(i, j);
-                        magicMapCell(i, j);
-                        pmap[i][j].flags &= ~(STABLE_MEMORY | DISCOVERED);
-                    }
-                }
-            }
-            for (i=0; i<DCOLS; i++) {
-                for (j=0; j<DROWS; j++) {
-                    if (!(pmap[i][j].flags & DISCOVERED) && pmap[i][j].layers[DUNGEON] != GRANITE) {
-                        magicMapCell(i, j);
-                    }
-                }
-            }
-            for (i=0; i<DCOLS; i++) {
-                for (j=0; j<DROWS; j++) {
-                    if (!(cellHasTerrainFlag((pos){ i, j }, T_IS_DF_TRAP))) {
-                        pmap[i][j].flags |= KNOWN_TO_BE_TRAP_FREE;
-                    }
-                }
-            }
+            magicMapCurrentLevel();
             colorFlash(&magicMapFlashColor, 0, MAGIC_MAPPED, 15, DCOLS + DROWS, player.loc.x, player.loc.y);
             break;
         case SCROLL_AGGRAVATE_MONSTER:
