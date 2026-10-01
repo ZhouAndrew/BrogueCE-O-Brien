@@ -883,11 +883,6 @@ void startLevel(short oldLevelNumber, short stairDirection) {
             }
         }
     }
-    // O'Brien mode: automatically reveal the layout of every level on arrival.
-    // This uses the same semantics as a scroll of magic mapping: terrain is mapped,
-    // not directly seen, so creatures and items remain subject to normal visibility.
-    magicMapCurrentLevel();
-
     if (cellHasTerrainFlag(player.loc, T_IS_DEEP_WATER) && !player.status[STATUS_LEVITATING]
         && !cellHasTerrainFlag(player.loc, (T_ENTANGLES | T_OBSTRUCTS_PASSABILITY))) {
         rogue.inWater = true;
