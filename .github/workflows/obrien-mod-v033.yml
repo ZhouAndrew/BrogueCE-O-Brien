@@ -202,7 +202,9 @@ jobs:
                               rogue.depthLevel);
                       exit(87);
                   }
-              } else if (!levels[rogue.depthLevel - 1].visited) {
+              } else {
+                  // Seed-catalog coverage enters freshly generated levels only.
+                  // A non-v0.2.33 game must still contain unknown traversable terrain here.
                   long unmappedTraversable = 0;
                   for (i = 0; i < DCOLS; i++) {
                       for (j = 0; j < DROWS; j++) {
