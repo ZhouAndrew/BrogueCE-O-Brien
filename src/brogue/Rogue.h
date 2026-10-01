@@ -3391,6 +3391,7 @@ extern "C" {
     void identify(item *theItem);
     void updateIdentifiableItem(item *theItem);
     void updateIdentifiableItems(void);
+    void magicMapCurrentLevel(void);
     boolean readScroll(item *theItem);
     void updateRingBonuses(void);
     void updatePlayerRegenerationDelay(void);
