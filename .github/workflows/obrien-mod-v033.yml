@@ -224,25 +224,50 @@ jobs:
           #endif
           """.replace("              ", "")
           p.write_text(s.replace(anchor, replacement, 1))
+
+          # Add a test-only up/down revisit after each generated seed so startLevel()
+          # is exercised on restored mapStorage as well as first visits.
+          sp = Path("src/brogue/SeedCatalog.c")
+          ss = sp.read_text()
+          revisit_anchor = """        }
+
+        freeEverything();
+"""
+          assert ss.count(revisit_anchor) == 1, "SeedCatalog revisit anchor is not unique"
+          revisit = """        }
+
+#ifdef BROGUE_AUTOMAP_REVISIT_TEST
+        if (scanThroughDepth >= 2) {
+            short deepestScanned = scanThroughDepth;
+            rogue.depthLevel = deepestScanned - 1;
+            startLevel(deepestScanned, -1);
+            rogue.depthLevel = deepestScanned;
+            startLevel(deepestScanned - 1, 1);
+        }
+#endif
+
+        freeEverything();
+"""
+          sp.write_text(ss.replace(revisit_anchor, revisit, 1))
           PY
 
       - name: Compile assertion build
         run: |
-          make -B -j3 GRAPHICS=NO CFLAGS="-DBROGUE_AUTOMAP_TEST" bin/brogue
+          make -B -j3 GRAPHICS=NO CFLAGS="-DBROGUE_AUTOMAP_TEST -DBROGUE_AUTOMAP_REVISIT_TEST" bin/brogue
 
       - name: Exercise automap across generated O'Brien and ordinary levels
         run: |
-          # 25 x 26 = 650 v0.2.33 O'Brien level entries must be fully mapped.
-          ./bin/brogue --variant obrien --print-seed-catalog 1 25 26 >/tmp/obrien-catalog.txt
-          # 10 x 26 = 260 ordinary Brogue level entries must remain non-automapped.
-          ./bin/brogue --print-seed-catalog 1 10 26 >/tmp/normal-catalog.txt
+          # 25 x 40 = 1,000 first-visit O'Brien entries, plus 50 forced revisits.
+          ./bin/brogue --variant obrien --print-seed-catalog 1 25 40 >/tmp/obrien-catalog.txt
+          # 10 x 40 = 400 ordinary entries, plus 20 forced revisits; none may be auto-mapped.
+          ./bin/brogue --print-seed-catalog 1 10 40 >/tmp/normal-catalog.txt
           test -s /tmp/obrien-catalog.txt
           test -s /tmp/normal-catalog.txt
 
       - name: ASan and UBSan automap/O'Brien run
         run: |
           make -B -j3 GRAPHICS=NO \
-            CFLAGS="-DBROGUE_AUTOMAP_TEST -fsanitize=address,undefined -fno-omit-frame-pointer" \
+            CFLAGS="-DBROGUE_AUTOMAP_TEST -DBROGUE_AUTOMAP_REVISIT_TEST -fsanitize=address,undefined -fno-omit-frame-pointer" \
             LDLIBS="-fsanitize=address,undefined" bin/brogue
           ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 \
           UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
