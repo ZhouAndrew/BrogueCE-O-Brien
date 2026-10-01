@@ -234,25 +234,21 @@ jobs:
           # is exercised on restored mapStorage as well as first visits.
           sp = Path("src/brogue/SeedCatalog.c")
           ss = sp.read_text()
-          revisit_anchor = """        }
-
-        freeEverything();
-"""
+          revisit_anchor = "        }\\n\\n        freeEverything();\\n"
           assert ss.count(revisit_anchor) == 1, "SeedCatalog revisit anchor is not unique"
-          revisit = """        }
-
-#ifdef BROGUE_AUTOMAP_REVISIT_TEST
-        if (scanThroughDepth >= 2) {
-            short deepestScanned = scanThroughDepth;
-            rogue.depthLevel = deepestScanned - 1;
-            startLevel(deepestScanned, -1);
-            rogue.depthLevel = deepestScanned;
-            startLevel(deepestScanned - 1, 1);
-        }
-#endif
-
-        freeEverything();
-"""
+          revisit = (
+              "        }\\n\\n"
+              "#ifdef BROGUE_AUTOMAP_REVISIT_TEST\\n"
+              "        if (scanThroughDepth >= 2) {\\n"
+              "            short deepestScanned = scanThroughDepth;\\n"
+              "            rogue.depthLevel = deepestScanned - 1;\\n"
+              "            startLevel(deepestScanned, -1);\\n"
+              "            rogue.depthLevel = deepestScanned;\\n"
+              "            startLevel(deepestScanned - 1, 1);\\n"
+              "        }\\n"
+              "#endif\\n\\n"
+              "        freeEverything();\\n"
+          )
           sp.write_text(ss.replace(revisit_anchor, revisit, 1))
           PY
 
