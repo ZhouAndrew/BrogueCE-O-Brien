@@ -311,6 +311,18 @@ int printSeedCatalog(uint64_t startingSeed, uint64_t numberOfSeedsToScan, unsign
             }
         }
 
+#ifdef BROGUE_AUTOMAP_REVISIT_TEST
+        // Exercise restoring already-visited levels in both directions.
+        // Runtime automap assertions in startLevel() validate the restored map.
+        if (scanThroughDepth >= 2) {
+            short deepestScanned = scanThroughDepth;
+            rogue.depthLevel = deepestScanned - 1;
+            startLevel(deepestScanned, -1);
+            rogue.depthLevel = deepestScanned;
+            startLevel(deepestScanned - 1, 1);
+        }
+#endif
+
         freeEverything();
     }
     return 0;
