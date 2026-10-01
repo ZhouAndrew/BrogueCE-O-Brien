@@ -248,6 +248,55 @@ jobs:
           UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
             ./bin/brogue --variant obrien --print-seed-catalog 1 10 26 >/tmp/asan-obrien.txt
 
+
+  legacy-replay-v033:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v5
+
+      - name: Materialize and verify historical 3727-turn save
+        run: |
+          python3 demo/materialize_save.py
+          test "$(stat -c %s demo/OBrien_3727turn_longsave_backup.broguesave)" = "20507"
+          echo "dadc44db70a6b029e7be9dee422acc96d9a6b9063837c897305c335ee444b76d  demo/OBrien_3727turn_longsave_backup.broguesave" | sha256sum -c -
+
+      - name: Apply deterministic historical input repair
+        run: |
+          python3 repair_legacy_obrien_save.py \
+            demo/OBrien_3727turn_longsave_backup.broguesave \
+            --output migrated-v033.broguesave
+          test "$(stat -c %s migrated-v033.broguesave)" = "20630"
+          echo "6ec2dd4a57b9dac8015b09cc84004ffd499d5e50a5ef59be162f3b7dae5138c0  migrated-v033.broguesave" | sha256sum -c -
+
+      - name: Apply complete v0.2.33 ruleset
+        run: |
+          python3 apply_obrien_mod_v0_2_33.py
+          grep -q 'OBRIEN_RULESET_V033            33' src/brogue/Recordings.c
+          grep -q 'gameVariant == VARIANT_OBRIEN_MUST_SURVIVE && obrienRulesetAtLeast(33)' src/brogue/RogueMain.c
+
+      - name: Add CI-only load/resume probe
+        run: python3 ci_longsave_resume_probe.py
+
+      - name: Build v0.2.33 with replay probe
+        run: make -B -j3 GRAPHICS=NO bin/brogue
+
+      - name: Replay historical save under v0.2.33 and continue live
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p /tmp/obrien-v033-legacy
+          cp migrated-v033.broguesave /tmp/obrien-v033-legacy/repaired.broguesave
+          cd /tmp/obrien-v033-legacy
+          OBRIEN_CI_LONGSAVE=1 "$GITHUB_WORKSPACE/bin/brogue" \
+            --variant obrien -o repaired.broguesave 2>&1 | tee replay-v033.log
+          grep -q 'LONGSAVE_RESUMED turn=3727 target=3727 depth=14 deepest=14 hp=40/40 playback=0 recording=1 oos=0' replay-v033.log
+          grep -q 'LONGSAVE_CONTINUED turn=3728 expected=3728' replay-v033.log
+          grep -q 'playback=0 recording=1 oos=0' replay-v033.log
+          if grep -q 'LONGSAVE_OOS' replay-v033.log; then exit 1; fi
+          if grep -q 'Expected RNG output' replay-v033.log; then exit 1; fi
+          if grep -q 'Unrecognized event type' replay-v033.log; then exit 1; fi
+
   windows-build:
     runs-on: windows-latest
     steps:
