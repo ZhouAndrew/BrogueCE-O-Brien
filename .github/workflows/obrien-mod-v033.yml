@@ -1,0 +1,252 @@
+name: "O'Brien Mod v0.2.33"
+
+on:
+  push:
+    branches:
+      - master
+      - 'chatgpt/obrien-v0.2.33'
+    paths:
+      - 'apply_obrien_mod.py'
+      - 'apply_obrien_mod_v0_2_*.py'
+      - 'repair_legacy_obrien_save.py'
+      - 'OBRIEN_MOD.md'
+      - 'src/**'
+      - '.github/workflows/obrien-mod-v033.yml'
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  linux-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev
+
+      - name: Validate updater syntax
+        run: |
+          python3 -m py_compile apply_obrien_mod_v0_2_32.py
+          python3 -m py_compile apply_obrien_mod_v0_2_33.py
+          python3 -m py_compile repair_legacy_obrien_save.py
+
+      - name: Apply v0.2.33 twice (idempotence)
+        run: |
+          python3 apply_obrien_mod_v0_2_33.py
+          python3 apply_obrien_mod_v0_2_33.py
+
+      - name: Verify retained and restored features
+        run: |
+          grep -q "O'Brien Must Survive v0.2.33" src/brogue/RogueMain.c
+
+          # v0.2.31 logistics
+          grep -q 'OBRIEN_RULESET_V031            31' src/brogue/Recordings.c
+          grep -q 'obrienRulesetVersion = OBRIEN_RULESET_V031' src/brogue/Recordings.c
+          grep -q 'obrienRulesetAtLeast(31) && depth >= 21' src/brogue/RogueMain.c
+          grep -q 'SCROLL_MAGIC_MAPPING, 1, 0, entryStairs' src/brogue/RogueMain.c
+          grep -q 'OBRIEN_BASHIR_STRENGTH_POTION_INTERVAL 2000' src/brogue/Monsters.c
+          grep -q 'Bashir has prepared a Potion of Strength' src/brogue/Monsters.c
+
+          # restored v0.2.32 replay compatibility
+          grep -q 'OBRIEN_COMPAT_HEADER_INDEX     13' src/brogue/Recordings.c
+          grep -q 'OBRIEN_COMPAT_DELAY_BASHIR_RETURN 0x01' src/brogue/Recordings.c
+          grep -q 'obrienBashirRecoveryUsesDelayedBoundary' src/brogue/Recordings.c
+          grep -q 'rogue.absoluteTurnNumber > obrienBashirReturnTurn' src/brogue/Monsters.c
+
+          # restored three-person dialogue
+          grep -q 'v0.2.33 three-person dialogue layer' src/brogue/Monsters.c
+          grep -q 'obrienSay("Miles"' src/brogue/Monsters.c
+          grep -q 'obrienSay("Bashir"' src/brogue/Monsters.c
+          grep -q 'obrienSay("HSO"' src/brogue/Monsters.c
+          test "$(grep -c 'obrienSay("' src/brogue/Monsters.c)" -eq 3
+          grep -q 'obrienDepthDialogue();' src/brogue/Monsters.c
+          grep -q 'obrienAmbientDialogue();' src/brogue/Monsters.c
+          grep -q 'obrienDeathDialogue();' src/brogue/RogueMain.c
+
+          # map-on-entry must survive the O'Brien updater
+          grep -q 'void magicMapCurrentLevel(void)' src/brogue/Items.c
+          grep -q 'magicMapCurrentLevel();' src/brogue/RogueMain.c
+
+      - name: Verify dialogue is deterministic and recording-passive
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path("src/brogue/Monsters.c").read_text()
+          a = text.index("// v0.2.33 three-person dialogue layer.")
+          b = text.index("void obrienDeathDialogue(void)", a)
+          # Include death dialogue body as part of the dialogue subsystem.
+          depth = 0
+          opening = text.index("{", b)
+          end = opening
+          for i in range(opening, len(text)):
+              if text[i] == "{":
+                  depth += 1
+              elif text[i] == "}":
+                  depth -= 1
+                  if depth == 0:
+                      end = i + 1
+                      break
+          block = text[a:end]
+          forbidden = ["rand_range(", "rand_percent(", "rand_64bits(", "recordKeystroke(", "recordMouseClick("]
+          for token in forbidden:
+              assert token not in block, f"dialogue unexpectedly uses {token}"
+          assert block.count('obrienSay("') == 3
+          PY
+
+      - name: Verify v0.2.32 header repair is byte-local
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('/tmp/compat-test.broguesave')
+          h = bytearray(36)
+          h[:9] = b'CE 1.15.1'
+          h[14] = 30
+          h[15] = 0xB0
+          payload = b'unchanged-event-stream-and-rng'
+          h[24:28] = (123).to_bytes(4, 'big')
+          h[28:32] = (123).to_bytes(4, 'big')
+          h[32:36] = (36 + len(payload)).to_bytes(4, 'big')
+          p.write_bytes(h + payload)
+          PY
+          python3 repair_legacy_obrien_save.py /tmp/compat-test.broguesave \
+            --bashir-recovery-delay-compat --output /tmp/compat-fixed.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          a = Path('/tmp/compat-test.broguesave').read_bytes()
+          b = Path('/tmp/compat-fixed.broguesave').read_bytes()
+          assert len(a) == len(b)
+          assert b[13] == (a[13] | 1)
+          assert b[14] == a[14] == 30
+          assert b[15] == a[15] == 0xB0
+          assert a[:13] == b[:13]
+          assert a[14:] == b[14:]
+          PY
+
+      - name: Compile normal patched game
+        run: make -B -j3 bin/brogue
+
+      - name: Verify ordinary dungeon generation remains unchanged
+        run: |
+          python3 test/compare_seed_catalog.py test/seed_catalogs/seed_catalog_brogue.txt 40
+          python3 test/compare_seed_catalog.py --extra_args "--variant rapid_brogue" test/seed_catalogs/seed_catalog_rapid_brogue.txt 10
+          python3 test/compare_seed_catalog.py --extra_args "--variant bullet_brogue" test/seed_catalogs/seed_catalog_bullet_brogue.txt 5
+
+      - name: Instrument automap invariants for runtime test
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("src/brogue/RogueMain.c")
+          s = p.read_text()
+          anchor = """    // O'Brien mode: automatically reveal the layout of every level on arrival.
+              // This uses the same semantics as a scroll of magic mapping: terrain is mapped,
+              // not directly seen, so creatures and items remain subject to normal visibility.
+              magicMapCurrentLevel();
+          """.replace("              ", "")
+          assert anchor in s, "automap call site not found"
+          replacement = r"""    // O'Brien mode: automatically reveal the layout of every level on arrival.
+              // This uses the same semantics as a scroll of magic mapping: terrain is mapped,
+              // not directly seen, so creatures and items remain subject to normal visibility.
+          #ifdef BROGUE_AUTOMAP_TEST
+              long automapVisibleBefore = 0;
+              long automapItemsBefore = 0;
+              long automapMonstersBefore = 0;
+              for (i = 0; i < DCOLS; i++) {
+                  for (j = 0; j < DROWS; j++) {
+                      if (pmap[i][j].flags & ANY_KIND_OF_VISIBLE) automapVisibleBefore++;
+                      if (pmap[i][j].flags & HAS_ITEM) automapItemsBefore++;
+                      if (pmap[i][j].flags & (HAS_MONSTER | HAS_DORMANT_MONSTER)) automapMonstersBefore++;
+                  }
+              }
+          #endif
+
+              magicMapCurrentLevel();
+
+          #ifdef BROGUE_AUTOMAP_TEST
+              long automapVisibleAfter = 0;
+              long automapItemsAfter = 0;
+              long automapMonstersAfter = 0;
+              for (i = 0; i < DCOLS; i++) {
+                  for (j = 0; j < DROWS; j++) {
+                      if (pmap[i][j].flags & ANY_KIND_OF_VISIBLE) automapVisibleAfter++;
+                      if (pmap[i][j].flags & HAS_ITEM) automapItemsAfter++;
+                      if (pmap[i][j].flags & (HAS_MONSTER | HAS_DORMANT_MONSTER)) automapMonstersAfter++;
+                      if (pmap[i][j].layers[DUNGEON] != GRANITE
+                          && !(pmap[i][j].flags & (DISCOVERED | MAGIC_MAPPED))) {
+                          fprintf(stderr, "AUTOMAP TEST FAILURE: depth %d cell %d,%d is not mapped\n",
+                                  rogue.depthLevel, i, j);
+                          exit(86);
+                      }
+                  }
+              }
+              if (automapVisibleBefore != automapVisibleAfter
+                  || automapItemsBefore != automapItemsAfter
+                  || automapMonstersBefore != automapMonstersAfter) {
+                  fprintf(stderr,
+                          "AUTOMAP TEST FAILURE: map reveal changed visibility/entities on depth %d\n",
+                          rogue.depthLevel);
+                  exit(87);
+              }
+          #endif
+          """.replace("              ", "")
+          p.write_text(s.replace(anchor, replacement, 1))
+          PY
+
+      - name: Compile assertion build
+        run: |
+          make -B -j3 GRAPHICS=NO CFLAGS="-DBROGUE_AUTOMAP_TEST" bin/brogue
+
+      - name: Exercise automap across generated O'Brien and ordinary levels
+        run: |
+          ./bin/brogue --variant obrien --print-seed-catalog 1 25 26 >/tmp/obrien-catalog.txt
+          ./bin/brogue --print-seed-catalog 1 10 26 >/tmp/normal-catalog.txt
+          test -s /tmp/obrien-catalog.txt
+          test -s /tmp/normal-catalog.txt
+
+      - name: ASan and UBSan automap/O'Brien run
+        run: |
+          make -B -j3 GRAPHICS=NO \
+            CFLAGS="-DBROGUE_AUTOMAP_TEST -fsanitize=address,undefined -fno-omit-frame-pointer" \
+            LDLIBS="-fsanitize=address,undefined" bin/brogue
+          ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 \
+          UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+            ./bin/brogue --variant obrien --print-seed-catalog 1 10 26 >/tmp/asan-obrien.txt
+
+  windows-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Apply v0.2.33
+        run: python apply_obrien_mod_v0_2_33.py
+      - name: Install dependencies
+        run: .\.github\get-deps-mingw.ps1
+      - name: Compile
+        shell: powershell
+        run: |
+          $env:path = $env:path + ";" + (Join-Path $pwd.Drive.Root "opt/local/x86_64-w64-mingw32/bin")
+          mingw32-make SDL_CONFIG='sdl2-config --prefix=/opt/local/x86_64-w64-mingw32' SYSTEM=WINDOWS CC=gcc bin/brogue.exe
+
+  macos-arm-build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Apply v0.2.33
+        run: python3 apply_obrien_mod_v0_2_33.py
+      - name: Build native SDL2 dependencies
+        run: bash .github/build-macos-sdl2.sh
+      - name: Compile
+        run: make MAC_APP=YES SDL_CONFIG="$BROGUE_SDL_PREFIX/bin/sdl2-config" Brogue.app
+
+  macos-intel-build:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v5
+      - name: Apply v0.2.33
+        run: python3 apply_obrien_mod_v0_2_33.py
+      - name: Build native SDL2 dependencies
+        run: bash .github/build-macos-sdl2.sh
+      - name: Compile
+        run: make MAC_APP=YES SDL_CONFIG="$BROGUE_SDL_PREFIX/bin/sdl2-config" Brogue.app
