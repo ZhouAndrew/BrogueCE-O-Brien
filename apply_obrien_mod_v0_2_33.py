@@ -4,6 +4,11 @@
 v0.2.33 restores the deliberately narrow three-person character-dialogue layer
 on top of v0.2.32 replay compatibility and v0.2.31 mission logistics.
 
+It also introduces ruleset generation 33. New v0.2.33 O'Brien missions
+automatically receive native Magic Mapping on every entered depth. Historical
+ruleset-31-and-earlier saves do not receive this behavior, preserving strict
+recording replay compatibility.
+
 Only three characters are allowed to speak:
 - Miles O'Brien (the player)
 - Bashir
@@ -120,6 +125,54 @@ def insert_after_function_end(rel, signature, insertion, marker):
                 return
         i += 1
     raise SystemExit(f"Cannot patch {rel}: closing brace for {signature!r} was not found.")
+
+
+# ---------------------------------------------------------------------------
+# Ruleset generation 33 and replay-safe automatic level mapping.
+# ---------------------------------------------------------------------------
+
+replace_once(
+    "src/brogue/Recordings.c",
+    """#define OBRIEN_RULESET_V030            30
+#define OBRIEN_RULESET_V031            31
+static unsigned char obrienCompatibilityFlags = 0;
+static unsigned char obrienRulesetVersion = OBRIEN_RULESET_V031;""",
+    """#define OBRIEN_RULESET_V030            30
+#define OBRIEN_RULESET_V031            31
+#define OBRIEN_RULESET_V033            33
+static unsigned char obrienCompatibilityFlags = 0;
+static unsigned char obrienRulesetVersion = OBRIEN_RULESET_V033;""",
+    "OBRIEN_RULESET_V033",
+)
+
+replace_once(
+    "src/brogue/Recordings.c",
+    """        obrienCompatibilityFlags = 0;
+        obrienRulesetVersion = OBRIEN_RULESET_V031;
+
+        // If present, set the patch version for playing the game.""",
+    """        obrienCompatibilityFlags = 0;
+        obrienRulesetVersion = OBRIEN_RULESET_V033;
+
+        // If present, set the patch version for playing the game.""",
+    "obrienRulesetVersion = OBRIEN_RULESET_V033;",
+)
+
+replace_once(
+    "src/brogue/RogueMain.c",
+    """    if (cellHasTerrainFlag(player.loc, T_IS_DEEP_WATER) && !player.status[STATUS_LEVITATING]
+        && !cellHasTerrainFlag(player.loc, (T_ENTANGLES | T_OBSTRUCTS_PASSABILITY))) {""",
+    """    // v0.2.33: new O'Brien missions receive a complete terrain map on
+    // every entered depth. This is ruleset-gated so historical recordings keep
+    // their original map/discovery state and strict RNG checkpoints.
+    if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE && obrienRulesetAtLeast(33)) {
+        magicMapCurrentLevel();
+    }
+
+    if (cellHasTerrainFlag(player.loc, T_IS_DEEP_WATER) && !player.status[STATUS_LEVITATING]
+        && !cellHasTerrainFlag(player.loc, (T_ENTANGLES | T_OBSTRUCTS_PASSABILITY))) {""",
+    "v0.2.33: new O'Brien missions receive a complete terrain map",
+)
 
 
 DIALOGUE_RUNTIME = r'''// v0.2.33 three-person dialogue layer.
@@ -625,6 +678,8 @@ replace_once(
 )
 
 print("O'Brien Must Survive v0.2.33 applied.")
+print("- ruleset generation 33 enables automatic Magic Mapping on every entered depth")
+print("- ruleset 31 and older recordings retain their historical map/discovery behavior")
 print("- dialogue speakers are hard-limited to Miles, Bashir and HSO")
 print("- generic allies, Golems, monsters and summons receive no character dialogue")
 print("- Bashir medical events and HSO deployment/status notices now speak in character")
