@@ -1,0 +1,143 @@
+name: "O'Brien Mod v0.2.34"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/obrien-v0.2.34-scroll-automap'
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  linux-validation:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev xvfb
+
+      - name: Validate and apply updater twice
+        run: |
+          python3 -m py_compile apply_obrien_mod_v0_2_34.py
+          python3 apply_obrien_mod_v0_2_34.py
+          python3 apply_obrien_mod_v0_2_34.py
+
+      - name: Verify v0.2.34 mapping architecture
+        run: |
+          grep -q "O'Brien Must Survive v0.2.34" src/brogue/RogueMain.c
+          grep -q 'void obrienAutoApplyMagicMappingScroll(boolean showEffect)' src/brogue/Items.c
+          grep -q 'applyMagicMappingScrollEffect(theScroll, false, true);' src/brogue/Items.c
+          grep -q 'mappingScroll->kind = SCROLL_MAGIC_MAPPING' src/brogue/Items.c
+          grep -q 'boolean obrienAutomaticMappingEnabled(void)' src/brogue/Recordings.c
+          grep -q 'obrienAutoMapContinuation = true;' src/brogue/Recordings.c
+          grep -q 'case SAVED_GAME_LOADED:' src/brogue/Recordings.c
+          grep -q 'obrienAutoApplyMagicMappingScroll(false);' src/brogue/Recordings.c
+          grep -q 'v0.2.34 mapping occurs after the first level display' src/brogue/RogueMain.c
+          grep -q 'obrienAutoApplyMagicMappingScroll(hasGraphics && !rogue.playbackMode);' src/brogue/RogueMain.c
+
+      - name: Compile SDL production build
+        run: make -B -j3 bin/brogue
+
+      - name: Verify CLI and O'Brien version
+        run: |
+          ./bin/brogue --version | grep -q "O'Brien Must Survive v0.2.34"
+          ./bin/brogue --help | grep -q 'obrien_must_survive'
+
+      - name: Real SDL startup smoke test
+        shell: bash
+        run: |
+          set +e
+          xvfb-run -a timeout 5s ./brogue --variant obrien -n
+          rc=$?
+          set -e
+          # A healthy interactive SDL game is still waiting for input after 5 s.
+          # timeout(1) therefore returns 124. Immediate exit is a failure.
+          test "$rc" -eq 124
+
+      - name: Verify ordinary dungeon generation unchanged
+        run: |
+          python3 test/compare_seed_catalog.py test/seed_catalogs/seed_catalog_brogue.txt 40
+          python3 test/compare_seed_catalog.py --extra_args "--variant rapid_brogue" test/seed_catalogs/seed_catalog_rapid_brogue.txt 10
+          python3 test/compare_seed_catalog.py --extra_args "--variant bullet_brogue" test/seed_catalogs/seed_catalog_bullet_brogue.txt 5
+
+      - name: Build automap assertion binary
+        run: |
+          make -B -j3 GRAPHICS=NO CFLAGS="-DBROGUE_AUTOMAP_TEST" bin/brogue
+
+      - name: Exercise transient scroll across 1000 O'Brien level entries
+        run: |
+          ./bin/brogue --variant obrien --print-seed-catalog 1 25 40 >/tmp/obrien-v034-catalog.txt
+          test -s /tmp/obrien-v034-catalog.txt
+
+      - name: ASan and UBSan transient-scroll run
+        run: |
+          make -B -j3 GRAPHICS=NO             CFLAGS="-DBROGUE_AUTOMAP_TEST -fsanitize=address,undefined -fno-omit-frame-pointer"             LDLIBS="-fsanitize=address,undefined" bin/brogue
+          ASAN_OPTIONS=detect_leaks=1:halt_on_error=1           UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1             ./bin/brogue --variant obrien --print-seed-catalog 1 10 26 >/tmp/asan-v034.txt
+          test -s /tmp/asan-v034.txt
+
+  legacy-save-resume:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Materialize historical save
+        run: |
+          python3 demo/materialize_save.py
+          test "$(stat -c %s demo/OBrien_3727turn_longsave_backup.broguesave)" = "20507"
+          echo "dadc44db70a6b029e7be9dee422acc96d9a6b9063837c897305c335ee444b76d  demo/OBrien_3727turn_longsave_backup.broguesave" | sha256sum -c -
+
+      - name: Repair historical input and apply v0.2.34
+        run: |
+          python3 repair_legacy_obrien_save.py             demo/OBrien_3727turn_longsave_backup.broguesave             --output migrated-v034.broguesave
+          python3 apply_obrien_mod_v0_2_34.py
+
+      - name: Add existing load/resume probe
+        run: python3 ci_longsave_resume_probe.py
+
+      - name: Build with automap invariants
+        run: |
+          make -B -j3 GRAPHICS=NO CFLAGS="-DBROGUE_AUTOMAP_TEST" bin/brogue
+
+      - name: Replay old history, resume live, and map current level
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p /tmp/obrien-v034-legacy
+          cp migrated-v034.broguesave /tmp/obrien-v034-legacy/repaired.broguesave
+          cd /tmp/obrien-v034-legacy
+          OBRIEN_CI_LONGSAVE=1 "$GITHUB_WORKSPACE/bin/brogue"             --variant obrien -o repaired.broguesave 2>&1 | tee replay-v034.log
+          grep -q 'LONGSAVE_RESUMED turn=3727 target=3727 depth=14 deepest=14 hp=40/40 playback=0 recording=1 oos=0' replay-v034.log
+          grep -q 'LONGSAVE_CONTINUED turn=3728 expected=3728' replay-v034.log
+          if grep -q 'LONGSAVE_OOS' replay-v034.log; then exit 1; fi
+          if grep -q 'Expected RNG output' replay-v034.log; then exit 1; fi
+          if grep -q 'AUTOMAP TEST FAILURE' replay-v034.log; then exit 1; fi
+
+  windows-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: python apply_obrien_mod_v0_2_34.py
+      - run: .\.github\get-deps-mingw.ps1
+      - shell: powershell
+        run: |
+          $env:path = $env:path + ";" + (Join-Path $pwd.Drive.Root "opt/local/x86_64-w64-mingw32/bin")
+          mingw32-make SDL_CONFIG='sdl2-config --prefix=/opt/local/x86_64-w64-mingw32' SYSTEM=WINDOWS CC=gcc bin/brogue.exe
+
+  macos-arm-build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+      - run: python3 apply_obrien_mod_v0_2_34.py
+      - run: bash .github/build-macos-sdl2.sh
+      - run: make MAC_APP=YES SDL_CONFIG="$BROGUE_SDL_PREFIX/bin/sdl2-config" Brogue.app
+
+  macos-intel-build:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v5
+      - run: python3 apply_obrien_mod_v0_2_34.py
+      - run: bash .github/build-macos-sdl2.sh
+      - run: make MAC_APP=YES SDL_CONFIG="$BROGUE_SDL_PREFIX/bin/sdl2-config" Brogue.app
