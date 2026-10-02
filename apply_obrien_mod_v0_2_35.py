@@ -86,19 +86,43 @@ static unsigned char obrienRulesetVersion = OBRIEN_RULESET_V035;""",
     "OBRIEN_RULESET_V035",
 )
 
-replace_once(
-    "src/brogue/Recordings.c",
-    """        obrienCompatibilityFlags = 0;
+rec_path = ROOT / "src/brogue/Recordings.c"
+rec_text = rec_path.read_text(encoding="utf-8")
+init_marker = "v0.2.35: brand-new missions start on ruleset 35."
+
+if init_marker in rec_text:
+    print("already patched src/brogue/Recordings.c")
+else:
+    old_init_v033 = """        obrienCompatibilityFlags = 0;
         obrienRulesetVersion = OBRIEN_RULESET_V033;
 
-        // If present, set the patch version for playing the game.""",
-    """        obrienCompatibilityFlags = 0;
+        // If present, set the patch version for playing the game."""
+
+    # Some historical updater chains left this line at V031 because v0.2.33
+    # used a marker that also matched the static default declaration.
+    old_init_v031 = """        obrienCompatibilityFlags = 0;
+        obrienRulesetVersion = OBRIEN_RULESET_V031;
+
+        // If present, set the patch version for playing the game."""
+
+    new_init = """        obrienCompatibilityFlags = 0;
         // v0.2.35: brand-new missions start on ruleset 35.
         obrienRulesetVersion = OBRIEN_RULESET_V035;
 
-        // If present, set the patch version for playing the game.""",
-    "v0.2.35: brand-new missions start on ruleset 35.",
-)
+        // If present, set the patch version for playing the game."""
+
+    if old_init_v033 in rec_text:
+        rec_text = rec_text.replace(old_init_v033, new_init, 1)
+    elif old_init_v031 in rec_text:
+        rec_text = rec_text.replace(old_init_v031, new_init, 1)
+    else:
+        raise SystemExit(
+            "Cannot patch src/brogue/Recordings.c: no compatible new-game ruleset initializer found."
+        )
+
+    rec_path.write_text(rec_text, encoding="utf-8")
+    print("patched src/brogue/Recordings.c")
+
 
 
 # ---------------------------------------------------------------------------
