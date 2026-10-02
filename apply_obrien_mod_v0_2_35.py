@@ -17,6 +17,7 @@ Historical rulesets are preserved exactly:
 """
 
 from pathlib import Path
+import re
 import runpy
 
 ROOT = Path(__file__).resolve().parent
@@ -93,33 +94,27 @@ init_marker = "v0.2.35: brand-new missions start on ruleset 35."
 if init_marker in rec_text:
     print("already patched src/brogue/Recordings.c")
 else:
-    old_init_v033 = """        obrienCompatibilityFlags = 0;
-        obrienRulesetVersion = OBRIEN_RULESET_V033;
-
-        // If present, set the patch version for playing the game."""
-
-    # Some historical updater chains left this line at V031 because v0.2.33
-    # used a marker that also matched the static default declaration.
-    old_init_v031 = """        obrienCompatibilityFlags = 0;
-        obrienRulesetVersion = OBRIEN_RULESET_V031;
-
-        // If present, set the patch version for playing the game."""
-
-    new_init = """        obrienCompatibilityFlags = 0;
-        // v0.2.35: brand-new missions start on ruleset 35.
-        obrienRulesetVersion = OBRIEN_RULESET_V035;
-
-        // If present, set the patch version for playing the game."""
-
-    if old_init_v033 in rec_text:
-        rec_text = rec_text.replace(old_init_v033, new_init, 1)
-    elif old_init_v031 in rec_text:
-        rec_text = rec_text.replace(old_init_v031, new_init, 1)
-    else:
+    # Historical updater chains have existed with V030, V031 and V033 left in
+    # this exact initializer. Anchor on the following patch-version comment so
+    # we update initRecording(), never the static default declaration.
+    init_pattern = re.compile(
+        r"(?P<indent>^[ \t]*)obrienRulesetVersion = OBRIEN_RULESET_V0(?:30|31|33|35);"
+        r"\n\n(?P<comment>^[ \t]*// If present, set the patch version for playing the game\.)",
+        re.MULTILINE,
+    )
+    match = init_pattern.search(rec_text)
+    if not match:
         raise SystemExit(
-            "Cannot patch src/brogue/Recordings.c: no compatible new-game ruleset initializer found."
+            "Cannot patch src/brogue/Recordings.c: new-game ruleset initializer anchor not found."
         )
 
+    indent = match.group("indent")
+    new_init = (
+        f"{indent}// v0.2.35: brand-new missions start on ruleset 35.\n"
+        f"{indent}obrienRulesetVersion = OBRIEN_RULESET_V035;\n\n"
+        f"{match.group('comment')}"
+    )
+    rec_text = rec_text[:match.start()] + new_init + rec_text[match.end():]
     rec_path.write_text(rec_text, encoding="utf-8")
     print("patched src/brogue/Recordings.c")
 
