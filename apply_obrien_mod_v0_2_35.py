@@ -93,10 +93,11 @@ replace_once(
 
         // If present, set the patch version for playing the game.""",
     """        obrienCompatibilityFlags = 0;
+        // v0.2.35: brand-new missions start on ruleset 35.
         obrienRulesetVersion = OBRIEN_RULESET_V035;
 
         // If present, set the patch version for playing the game.""",
-    "obrienRulesetVersion = OBRIEN_RULESET_V035;",
+    "v0.2.35: brand-new missions start on ruleset 35.",
 )
 
 
