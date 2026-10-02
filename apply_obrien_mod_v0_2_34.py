@@ -109,7 +109,6 @@ def insert_after_function_end(rel, signature, insertion, marker):
 AUTOMAP_SCROLL_HELPER = r'''
 static void applyMagicMappingScrollEffect(item *theScroll, boolean automatic, boolean showEffect) {
 #ifdef BROGUE_AUTOMAP_TEST
-    unsigned long automapRngBefore = randomNumbersGenerated;
     unsigned long automapTurnBefore = rogue.playerTurnNumber;
     unsigned long automapAbsoluteTurnBefore = rogue.absoluteTurnNumber;
     long automapVisibleBefore = 0;
@@ -198,18 +197,29 @@ static void applyMagicMappingScrollEffect(item *theScroll, boolean automatic, bo
 
             fprintf(stderr,
                     "AUTOMAP TEST FAILURE: automatic mapping consumed a turn\n");
-            exit(89);
+            exit(88);
         }
     }
 #endif
 }
 
 void obrienAutoApplyMagicMappingScroll(boolean showEffect) {
+#ifdef BROGUE_AUTOMAP_TEST
+    unsigned long constructionRngBefore = randomNumbersGenerated;
+#endif
     item *mappingScroll = initializeItem();
 
     // Construct a real Mapping scroll without makeItemInto()/generateItem().
     // Those helpers make a category-selection RNG call even when the category
-    // is fixed. This transient scroll must be completely RNG-neutral.
+    // is fixed. The transient object itself must be RNG-neutral; the native
+    // Magic Mapping effect may legitimately consume substantive RNG while
+    // discovering secret terrain, exactly as a manually read scroll does.
+#ifdef BROGUE_AUTOMAP_TEST
+    if (constructionRngBefore != randomNumbersGenerated) {
+        fprintf(stderr, "AUTOMAP TEST FAILURE: transient scroll construction consumed RNG\\n");
+        exit(89);
+    }
+#endif
     mappingScroll->category = SCROLL;
     mappingScroll->kind = SCROLL_MAGIC_MAPPING;
     mappingScroll->displayChar = G_SCROLL;
@@ -397,7 +407,8 @@ replace_once(
 
 print("O'Brien Must Survive v0.2.34 applied.")
 print("- automatic mapping now uses a transient real Scroll of Magic Mapping object")
-print("- the automatic scroll consumes no player turn, fake input event, pack slot, or substantive RNG")
+print("- the transient scroll object consumes no player turn, fake input event, pack slot, or extra RNG")
+print("- native Magic Mapping RNG consumption is preserved and replayed at save/load boundaries")
 print("- the scroll effect runs on the final level display path and redraws the mapped level")
 print("- old O'Brien saves gain mapping when replay finishes and live play resumes")
 print("- SAVED_GAME_LOADED boundaries reproduce that transition on later replay")
