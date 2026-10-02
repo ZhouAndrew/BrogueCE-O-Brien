@@ -298,10 +298,11 @@ replace_once(
 
     if (rogue.playbackMode) {""",
     """    rogue.patchVersion          = 0;
+    // v0.2.34: reset replay/live mapping boundary for each recording session.
     obrienAutoMapContinuation = false;
 
     if (rogue.playbackMode) {""",
-    "obrienAutoMapContinuation = false;",
+    "v0.2.34: reset replay/live mapping boundary for each recording session.",
 )
 
 replace_once(
