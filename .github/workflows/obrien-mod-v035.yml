@@ -1,0 +1,150 @@
+name: "O'Brien Mod v0.2.35"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/obrien-v0.2.35-incineration-resupply'
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  linux-validation:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libsdl2-dev libsdl2-image-dev xvfb
+
+      - name: Apply v0.2.35 twice
+        run: |
+          python3 -m py_compile apply_obrien_mod_v0_2_35.py
+          python3 apply_obrien_mod_v0_2_35.py
+          python3 apply_obrien_mod_v0_2_35.py
+
+      - name: Verify ruleset and resupply source
+        run: |
+          grep -q "O'Brien Must Survive v0.2.35" src/brogue/RogueMain.c
+          grep -q 'OBRIEN_RULESET_V035' src/brogue/Recordings.c
+          grep -q 'obrienRulesetVersion = OBRIEN_RULESET_V035;' src/brogue/Recordings.c
+          grep -q 'v0.2.35: restore the former caustic/poison allocation' src/brogue/RogueMain.c
+          grep -q 'POTION_INCINERATION, 2' src/brogue/RogueMain.c
+          grep -q 'POTION_PARALYSIS, 2' src/brogue/RogueMain.c
+          grep -q 'POTION_CONFUSION, 2' src/brogue/RogueMain.c
+          grep -q 'Historical v0.2.30-v0.2.34 layout' src/brogue/RogueMain.c
+
+      - name: Compile SDL production build
+        run: make -B -j3 bin/brogue
+
+      - name: Verify version and real SDL startup
+        shell: bash
+        run: |
+          ./bin/brogue --version | grep -q "O'Brien Must Survive v0.2.35"
+          set +e
+          xvfb-run -a timeout 5s ./brogue --variant obrien -n
+          rc=$?
+          set -e
+          test "$rc" -eq 124
+
+      - name: Verify actual periodic cache payload
+        shell: bash
+        run: |
+          ./bin/brogue --variant obrien --csv --print-seed-catalog 1 3 10 > /tmp/v035.csv
+          for depth in 5 10; do
+            grep -Eq ",${depth},2,potion,incineration," /tmp/v035.csv
+            grep -Eq ",${depth},2,potion,paralysis," /tmp/v035.csv
+            grep -Eq ",${depth},2,potion,confusion," /tmp/v035.csv
+            if grep -Eq ",${depth},4,potion,paralysis," /tmp/v035.csv; then
+              echo "Unexpected v0.2.30-v0.2.34 four-shot paralysis cache at depth ${depth}"
+              exit 1
+            fi
+            if grep -Eq ",${depth},2,potion,poison," /tmp/v035.csv; then
+              echo "Unexpected Starfleet poison/caustic allocation at depth ${depth}"
+              exit 1
+            fi
+          done
+
+      - name: Verify ordinary variants unchanged
+        run: |
+          python3 test/compare_seed_catalog.py test/seed_catalogs/seed_catalog_brogue.txt 40
+          python3 test/compare_seed_catalog.py --extra_args "--variant rapid_brogue" test/seed_catalogs/seed_catalog_rapid_brogue.txt 10
+          python3 test/compare_seed_catalog.py --extra_args "--variant bullet_brogue" test/seed_catalogs/seed_catalog_bullet_brogue.txt 5
+
+      - name: Re-run automatic mapping invariants
+        run: |
+          make -B -j3 GRAPHICS=NO CFLAGS="-DBROGUE_AUTOMAP_TEST" bin/brogue
+          ./bin/brogue --variant obrien --print-seed-catalog 1 25 40 >/tmp/v035-automap.txt
+          test -s /tmp/v035-automap.txt
+
+      - name: ASan and UBSan
+        run: |
+          make -B -j3 GRAPHICS=NO \
+            CFLAGS="-DBROGUE_AUTOMAP_TEST -fsanitize=address,undefined -fno-omit-frame-pointer" \
+            LDLIBS="-fsanitize=address,undefined" bin/brogue
+          ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 \
+          UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+            ./bin/brogue --variant obrien --print-seed-catalog 1 10 26 >/tmp/v035-asan.txt
+          test -s /tmp/v035-asan.txt
+
+  legacy-save-replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Materialize and repair historical save
+        run: |
+          python3 demo/materialize_save.py
+          python3 repair_legacy_obrien_save.py \
+            demo/OBrien_3727turn_longsave_backup.broguesave \
+            --output migrated-v035.broguesave
+
+      - name: Apply latest v0.2.35 and long-save probe
+        run: |
+          python3 apply_obrien_mod_v0_2_35.py
+          python3 ci_longsave_resume_probe.py
+          make -B -j3 GRAPHICS=NO CFLAGS="-DBROGUE_AUTOMAP_TEST" bin/brogue
+
+      - name: Replay old save and continue
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p /tmp/obrien-v035-legacy
+          cp migrated-v035.broguesave /tmp/obrien-v035-legacy/repaired.broguesave
+          cd /tmp/obrien-v035-legacy
+          OBRIEN_CI_LONGSAVE=1 "$GITHUB_WORKSPACE/bin/brogue" \
+            --variant obrien -o repaired.broguesave 2>&1 | tee replay-v035.log
+          grep -q 'LONGSAVE_RESUMED turn=3727 target=3727 depth=14 deepest=14 hp=40/40 playback=0 recording=1 oos=0' replay-v035.log
+          grep -q 'LONGSAVE_CONTINUED turn=3728 expected=3728' replay-v035.log
+          if grep -q 'LONGSAVE_OOS' replay-v035.log; then exit 1; fi
+          if grep -q 'Expected RNG output' replay-v035.log; then exit 1; fi
+          if grep -q 'AUTOMAP TEST FAILURE' replay-v035.log; then exit 1; fi
+
+  windows-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: python apply_obrien_mod_v0_2_35.py
+      - run: .\.github\get-deps-mingw.ps1
+      - shell: powershell
+        run: |
+          $env:path = $env:path + ";" + (Join-Path $pwd.Drive.Root "opt/local/x86_64-w64-mingw32/bin")
+          mingw32-make SDL_CONFIG='sdl2-config --prefix=/opt/local/x86_64-w64-mingw32' SYSTEM=WINDOWS CC=gcc bin/brogue.exe
+
+  macos-arm-build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+      - run: python3 apply_obrien_mod_v0_2_35.py
+      - run: bash .github/build-macos-sdl2.sh
+      - run: make MAC_APP=YES SDL_CONFIG="$BROGUE_SDL_PREFIX/bin/sdl2-config" Brogue.app
+
+  macos-intel-build:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v5
+      - run: python3 apply_obrien_mod_v0_2_35.py
+      - run: bash .github/build-macos-sdl2.sh
+      - run: make MAC_APP=YES SDL_CONFIG="$BROGUE_SDL_PREFIX/bin/sdl2-config" Brogue.app
