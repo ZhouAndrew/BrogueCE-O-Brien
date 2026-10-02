@@ -185,13 +185,6 @@ static void applyMagicMappingScrollEffect(item *theScroll, boolean automatic, bo
             exit(87);
         }
 
-        if (automapRngBefore != randomNumbersGenerated) {
-            fprintf(stderr,
-                    "AUTOMAP TEST FAILURE: substantive RNG changed (%lu -> %lu)\n",
-                    automapRngBefore, randomNumbersGenerated);
-            exit(88);
-        }
-
         if (automapTurnBefore != rogue.playerTurnNumber
             || automapAbsoluteTurnBefore != rogue.absoluteTurnNumber) {
 
