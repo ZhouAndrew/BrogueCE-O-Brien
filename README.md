@@ -1,3 +1,27 @@
+O'Brien Must Survive — v0.2.35
+=================================
+
+This fork's current O'Brien gameplay release is **v0.2.35**.
+
+Key O'Brien rules in this release:
+
+- automatic Magic Mapping on every entered level, using the native Mapping-scroll effect path;
+- current periodic Starfleet resupply cadence remains every 3 depths (3, 6, 9, 12, ...);
+- the former caustic/poison tactical allocation is replaced by **2 Potions of Incineration**;
+- each periodic cache carries **2 Incineration + 2 Paralysis + 2 Confusion** for the tactical potion allocation;
+- historical O'Brien rulesets and old save/recording replay behavior remain compatibility-gated.
+
+Apply the current updater with:
+
+```bash
+python3 apply_obrien_mod_v0_2_35.py
+make -B -j"$(nproc)" bin/brogue
+```
+
+The underlying game remains Brogue CE 1.15.1.
+
+---
+
 Brogue CE
 =========
 
