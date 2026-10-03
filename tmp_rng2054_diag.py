@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import re
 
 p = Path("src/brogue/Math.c")
 s = p.read_text(encoding="utf-8")
-pat = re.compile(r'''long rand_range\(long lowerBound, long upperBound\) \{
-    if \(upperBound <= lowerBound\) \{
+old = """long rand_range(long lowerBound, long upperBound) {
+    if (upperBound <= lowerBound) {
         return lowerBound;
-    \}
-    if \(rogue\.RNG == RNG_SUBSTANTIVE\) \{
-        randomNumbersGenerated\+\+;
-    \}
-    long interval = upperBound - lowerBound \+ 1;
-    brogueAssert\(interval > 1\);[^\n]*\n
-    return lowerBound \+ range\(interval, rogue\.RNG\);
-\}''')
-new = '''long rand_range(long lowerBound, long upperBound) {
+    }
+    if (rogue.RNG == RNG_SUBSTANTIVE) {
+        randomNumbersGenerated++;
+    }
+    long interval = upperBound - lowerBound + 1;
+    brogueAssert(interval > 1); // to verify that we didn't wrap around
+    return lowerBound + range(interval, rogue.RNG);
+}"""
+new = """long rand_range(long lowerBound, long upperBound) {
     if (upperBound <= lowerBound) {
         return lowerBound;
     }
@@ -24,7 +23,7 @@ new = '''long rand_range(long lowerBound, long upperBound) {
     }
     long interval = upperBound - lowerBound + 1;
     long retval;
-    brogueAssert(interval > 1);
+    brogueAssert(interval > 1); // to verify that we didn't wrap around
     retval = lowerBound + range(interval, rogue.RNG);
     if (getenv("OBRIEN_RNG_DIAG")
         && rogue.RNG == RNG_SUBSTANTIVE
@@ -50,11 +49,10 @@ void obrienDebugPeekSubstantiveBytes(short count) {
         printf("RNG_PEEK offset=%d byte=%ld\\n", i, r);
     }
     fflush(stdout);
-}'''
-s2,n=pat.subn(new,s,count=1)
-if n != 1:
-    raise SystemExit(f"normal rand_range regex matched {n} times")
-p.write_text(s2, encoding="utf-8")
+}"""
+if old not in s:
+    raise SystemExit("normal rand_range anchor missing")
+p.write_text(s.replace(old, new, 1), encoding="utf-8")
 
 p = Path("src/brogue/Recordings.c")
 s = p.read_text(encoding="utf-8")
