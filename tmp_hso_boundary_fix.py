@@ -14,26 +14,52 @@ old = """void obrienSavedGameLoadedBoundary(void) {
 new = """void obrienSavedGameLoadedBoundary(void) {
     if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
         && obrienRulesetAtLeast(35)) {
+        if (getenv("OBRIEN_USER_SAVE_PROBE")) {
+            printf("OBRIEN_BOUNDARY before player=%li absolute=%lu bashirReturn=%lu strengthClock=%lu "
+                   "securityPtr=%p L=%d P=%d recharge=%lu suspended=%d storedHP=%d storedL=%d storedP=%d\\n",
+                   rogue.playerTurnNumber, rogue.absoluteTurnNumber,
+                   obrienBashirReturnTurn, obrienBashirLastStrengthPotionTurn,
+                   (void *) obrienSecurityRuntimeMonst,
+                   obrienSecurityLightningCharges, obrienSecurityPoisonCharges,
+                   obrienSecurityLastRechargeTurn, obrienSecuritySuspended,
+                   obrienSecurityStoredIntegrity,
+                   obrienSecurityStoredLightningCharges,
+                   obrienSecurityStoredPoisonCharges);
+            fflush(stdout);
+        }
+
+        // A historical SAVED_GAME_LOADED marks a process restart. Reconstruct
+        // every O'Brien gameplay-relevant process-local static from its fresh
+        // process value before the resumed run continues.
+        obrienBashirReturnTurn = 0;
         obrienBashirLastStrengthPotionTurn = rogue.absoluteTurnNumber;
 
-        // Historical ruleset-35 saves crossed a real process boundary here.
-        // The Security Hologram's virtual emitter magazines and binding state
-        // are process-local statics, so a fresh process reset them even though
-        // the hologram creature itself was restored from the save. Reproduce
-        // that boundary during full replay so tactical AI consumes RNG exactly
-        // as the original resumed run did.
         obrienSecurityRuntimeMonst = NULL;
         obrienSecurityLightningCharges = OBRIEN_SECURITY_MAX_CHARGES;
         obrienSecurityPoisonCharges = OBRIEN_SECURITY_MAX_CHARGES;
-        obrienSecurityLastRechargeTurn = rogue.absoluteTurnNumber;
+        obrienSecurityLastRechargeTurn = 0;
         obrienSecuritySuspended = false;
         obrienSecurityStoredIntegrity = 0;
         obrienSecurityStoredLightningCharges = OBRIEN_SECURITY_MAX_CHARGES;
         obrienSecurityStoredPoisonCharges = OBRIEN_SECURITY_MAX_CHARGES;
+
+        if (getenv("OBRIEN_USER_SAVE_PROBE")) {
+            printf("OBRIEN_BOUNDARY after player=%li absolute=%lu bashirReturn=%lu strengthClock=%lu "
+                   "securityPtr=%p L=%d P=%d recharge=%lu suspended=%d storedHP=%d storedL=%d storedP=%d\\n",
+                   rogue.playerTurnNumber, rogue.absoluteTurnNumber,
+                   obrienBashirReturnTurn, obrienBashirLastStrengthPotionTurn,
+                   (void *) obrienSecurityRuntimeMonst,
+                   obrienSecurityLightningCharges, obrienSecurityPoisonCharges,
+                   obrienSecurityLastRechargeTurn, obrienSecuritySuspended,
+                   obrienSecurityStoredIntegrity,
+                   obrienSecurityStoredLightningCharges,
+                   obrienSecurityStoredPoisonCharges);
+            fflush(stdout);
+        }
     }
 }"""
 
 if old not in s:
     raise SystemExit("v0.2.36 saved-game boundary anchor missing")
 p.write_text(s.replace(old, new, 1), encoding="utf-8")
-print("temporary HSO process-boundary compatibility fix applied")
+print("temporary full O'Brien gameplay-static boundary fix applied")
