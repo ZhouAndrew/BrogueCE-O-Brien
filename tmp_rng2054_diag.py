@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 
-# Instrument substantive RNG calls around the first remaining OOS.
 p = Path("src/brogue/Math.c")
 s = p.read_text(encoding="utf-8")
-old = """long rand_range(long lowerBound, long upperBound) {
-    if (upperBound <= lowerBound) {
+pat = re.compile(r'''long rand_range\(long lowerBound, long upperBound\) \{
+    if \(upperBound <= lowerBound\) \{
         return lowerBound;
-    }
-    if (rogue.RNG == RNG_SUBSTANTIVE) {
-        randomNumbersGenerated++;
-    }
-    long interval = upperBound - lowerBound + 1;
-    brogueAssert(interval > 1);
-    return lowerBound + range(interval, rogue.RNG);
-}"""
-new = """long rand_range(long lowerBound, long upperBound) {
+    \}
+    if \(rogue\.RNG == RNG_SUBSTANTIVE\) \{
+        randomNumbersGenerated\+\+;
+    \}
+    long interval = upperBound - lowerBound \+ 1;
+    brogueAssert\(interval > 1\);[^\n]*\n
+    return lowerBound \+ range\(interval, rogue\.RNG\);
+\}''')
+new = '''long rand_range(long lowerBound, long upperBound) {
     if (upperBound <= lowerBound) {
         return lowerBound;
     }
@@ -40,7 +40,7 @@ new = """long rand_range(long lowerBound, long upperBound) {
 
 void obrienDebugPeekSubstantiveBytes(short count) {
     ranctx copy = RNGState[RNG_SUBSTANTIVE];
-    long div = RAND_MAX_COMBO / 256;
+    unsigned long div = RAND_MAX_COMBO / 256;
     short i;
     for (i = 1; i <= count; i++) {
         long r;
@@ -50,10 +50,11 @@ void obrienDebugPeekSubstantiveBytes(short count) {
         printf("RNG_PEEK offset=%d byte=%ld\\n", i, r);
     }
     fflush(stdout);
-}"""
-if old not in s:
-    raise SystemExit("normal rand_range anchor missing")
-p.write_text(s.replace(old, new, 1), encoding="utf-8")
+}'''
+s2,n=pat.subn(new,s,count=1)
+if n != 1:
+    raise SystemExit(f"normal rand_range regex matched {n} times")
+p.write_text(s2, encoding="utf-8")
 
 p = Path("src/brogue/Recordings.c")
 s = p.read_text(encoding="utf-8")
@@ -73,7 +74,7 @@ old = """    randomNumber = (unsigned long) rand_range(0, 255);
 
     rogue.RNG = oldRNG;
 }"""
-new = """    randomNumber = (unsigned long) rand_range(0, 255);
+new2 = """    randomNumber = (unsigned long) rand_range(0, 255);
     OOSCheck(randomNumber, 1);
 
     if (getenv("OBRIEN_RNG_DIAG") && rogue.playerTurnNumber == 2053) {
@@ -87,5 +88,5 @@ new = """    randomNumber = (unsigned long) rand_range(0, 255);
 }"""
 if old not in s:
     raise SystemExit("RNGCheck body anchor missing")
-p.write_text(s.replace(old, new, 1), encoding="utf-8")
+p.write_text(s.replace(old, new2, 1), encoding="utf-8")
 print("turn-2054 RNG diagnostic instrumentation applied")
