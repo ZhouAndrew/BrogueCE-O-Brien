@@ -1,20 +1,21 @@
-O'Brien Must Survive — v0.2.35
+O'Brien Must Survive — v0.2.36
 =================================
 
-This fork's current O'Brien gameplay release is **v0.2.35**.
+This fork's current O'Brien gameplay release is **v0.2.36**.
 
 Key O'Brien rules in this release:
 
 - automatic Magic Mapping on every entered level, using the native Mapping-scroll effect path;
 - current periodic Starfleet resupply cadence remains every 3 depths (3, 6, 9, 12, ...);
-- the former caustic/poison tactical allocation is replaced by **2 Potions of Incineration**;
 - each periodic cache carries **2 Incineration + 2 Paralysis + 2 Confusion** for the tactical potion allocation;
-- historical O'Brien rulesets and old save/recording replay behavior remain compatibility-gated.
+- **ruleset 35 has a strict replay-compatibility path** for historical `SAVED_GAME_LOADED` boundaries: Bashir's process-local Strength-potion fabrication clock is rebased at the recorded boundary instead of allowing a replay-only potion to consume substantive RNG later;
+- the compatibility path does **not** skip, rewrite, scan for, or re-lock RNG checkpoints;
+- new missions use ruleset generation **36**; gameplay otherwise remains v0.2.35.
 
 Apply the current updater with:
 
 ```bash
-python3 apply_obrien_mod_v0_2_35.py
+python3 apply_obrien_mod_v0_2_36.py
 make -B -j"$(nproc)" bin/brogue
 ```
 
