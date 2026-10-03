@@ -1,0 +1,28 @@
+name: "Temporary O'Brien v0.2.36 headless build"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/obrien-v0.2.36-headless-test'
+  workflow_dispatch:
+
+jobs:
+  build-headless:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Apply exact v0.2.36
+        run: |
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 apply_obrien_mod_v0_2_36.py
+      - name: Build null-console binary
+        run: |
+          make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
+          ./bin/brogue --version | tee headless-version.txt
+          grep -q "O'Brien Must Survive v0.2.36" headless-version.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obrien-v036-headless-linux
+          path: |
+            bin/brogue
+            headless-version.txt
