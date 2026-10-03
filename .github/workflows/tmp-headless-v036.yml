@@ -28,9 +28,11 @@ jobs:
           make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
           ./bin/brogue --version | tee headless-version.txt
           grep -q "O'Brien Must Survive v0.2.36" headless-version.txt
+          tar -czf generated-source.tar.gz src Makefile config.mk make tools
       - uses: actions/upload-artifact@v4
         with:
           name: obrien-v036-rng2054-probe-linux
           path: |
             bin/brogue
             headless-version.txt
+            generated-source.tar.gz
