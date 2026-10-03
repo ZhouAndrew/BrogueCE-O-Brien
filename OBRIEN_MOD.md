@@ -1,6 +1,24 @@
-# O'Brien Must Survive v0.2.33
+# O'Brien Must Survive v0.2.36
 
 This repository includes a chained updater for **Brogue CE 1.15.1**. Apply the newest updater to a clean source tree; it runs all earlier O'Brien patches in order.
+
+## v0.2.36 strict ruleset-35 replay bridge
+
+v0.2.36 adds a strict compatibility path for historical **ruleset 35** saves and recordings. It does not weaken Brogue's replay audit: existing `RNG_CHECK` records remain authoritative and are never skipped, rewritten, scanned past, or re-locked.
+
+The compatibility case is a process-boundary state mismatch. Ruleset 35 recordings can contain `SAVED_GAME_LOADED` events, while Bashir's 2000-turn Strength-potion fabrication clock is process-local state. On a historical load boundary, allowing that timer to flow straight through replay can make the replay fabricate a potion that the recorded continuation did not create. That extra `generateItem(POTION, POTION_STRENGTH)` consumes substantive RNG and the next normal RNG checkpoint then fails.
+
+The v0.2.36 path therefore:
+
+- recognizes a ruleset-35 `SAVED_GAME_LOADED` during playback as a strict compatibility boundary;
+- rebases Bashir's fabrication clock to the current `absoluteTurnNumber` at that boundary;
+- performs the same rebase when a ruleset-35-or-newer game returns to live play, before the existing load-boundary marker is recorded;
+- advances newly started O'Brien missions to ruleset generation **36**, so future recordings have an explicit post-fix generation;
+- leaves pre-v0.2.35 rulesets unchanged;
+- does not alter recorded inputs, seed, turn count, level count, file length, or RNG checkpoints.
+
+This is deliberately a state-reconstruction fix rather than an OOS bypass. If replay still diverges after the boundary is reconstructed, normal `playbackPanic()` behavior remains in force.
+
 
 ## v0.2.33 design
 
