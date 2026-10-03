@@ -1,0 +1,39 @@
+name: "Temporary 3714 historical replay matrix"
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-history-3714.yml'
+  workflow_dispatch:
+
+jobs:
+  build-history:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build historical headless binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/history
+          for v in 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35; do
+            echo "===== v0.2.$v ====="
+            git reset --hard HEAD
+            git clean -fdx
+            script="apply_obrien_mod_v0_2_${v}.py"
+            if [ ! -f "$script" ]; then
+              echo "missing $script" >&2
+              exit 2
+            fi
+            python3 "$script"
+            mkdir -p bin
+            make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
+            cp bin/brogue "/tmp/history/brogue-v0.2.$v"
+          done
+      - name: Package
+        run: tar -C /tmp -czf obrien-history-v020-v035.tar.gz history
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obrien-history-v020-v035-headless
+          path: obrien-history-v020-v035.tar.gz
