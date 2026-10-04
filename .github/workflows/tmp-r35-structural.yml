@@ -110,17 +110,8 @@ jobs:
           start=s.index("void recallEvent(rogueEvent *event) {")
           end=s.index("\n}\n\nstatic void loadNextAnnotation()", start)+2
           block=s[start:end]
-          old_case='''            case RNG_CHECK:
-              case END_OF_RECORDING:
-              case EVENT_ERROR:
-              default:
-                  message("Unrecognized event type in playback.", REQUIRE_ACKNOWLEDGMENT);
-                  printf("Unrecognized event type in playback: event ID %i", c);
-                  tryAgain = true;
-                  playbackPanic();
-                  break;'''.replace("              ","    ")
-          if old_case not in block:
-              raise SystemExit("recallEvent RNG case anchor missing")
+          case_start=block.index("            case RNG_CHECK:")
+          case_end=block.index("                break;", case_start) + len("                break;")
           new_case=r'''            case RNG_CHECK:
                   if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
                       && obrienStrictReplayRuleset35()) {
@@ -134,7 +125,7 @@ jobs:
                       event->shiftKey = false;
                       if (obrienR35SyntheticRests <= 20
                           || obrienR35SyntheticRests % 100 == 0) {
-                          printf("OBRIEN_R35_SYNTH_REST count=%lu turn=%li loc=%li\n",
+                          printf("OBRIEN_R35_SYNTH_REST count=%lu turn=%li loc=%li\\n",
                                  obrienR35SyntheticRests, rogue.playerTurnNumber,
                                  recordingLocation);
                           fflush(stdout);
@@ -150,7 +141,7 @@ jobs:
                   tryAgain = true;
                   playbackPanic();
                   break;'''
-          block=block.replace(old_case,new_case,1)
+          block=block[:case_start]+new_case+block[case_end:]
           s=s[:start]+block+s[end:]
           p.write_text(s)
           PY
