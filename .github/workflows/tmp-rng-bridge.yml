@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        burn: [0, 1, 2, 3]
+        burn: [0, 1, 2, 3, 4, 5, 6, 7, 8]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v5
@@ -82,14 +82,14 @@ jobs:
           new=tail.replace(
               "    randomNumber = (unsigned long) rand_range(0, 255);",
               f'''    if (rogue.playbackMode && gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
-                  && rogue.playerTurnNumber == 2054) {{
-                  for (short obrienBridgeBurn = 0; obrienBridgeBurn < {burn}; obrienBridgeBurn++) {{
+                  && (rogue.playerTurnNumber == 2054 || rogue.playerTurnNumber == 2055)) {{
+                  for (short obrienBridgeBurn = 0; obrienBridgeBurn < (rogue.playerTurnNumber == 2054 ? 2 : {burn}); obrienBridgeBurn++) {{
                       (void) rand_range(0, 255);
                   }}
               }}
               randomNumber = (unsigned long) rand_range(0, 255);''')
           p.write_text(s.replace(tail,new,1))
-          print("burn", burn)
+          print("turn2054 burn 2; turn2055 burn", burn)
           PY
 
       - name: Build
@@ -103,6 +103,6 @@ jobs:
           OBRIEN_USER_SAVE_PROBE=1 ./bin/brogue --variant obrien -o strict.broguesave > replay.log 2>&1
           rc=$?
           set -e
-          echo "BURN=${{ matrix.burn }} RC=$rc"
+          echo "BURN2055=${{ matrix.burn }} RC=$rc"
           grep -E 'Expected RNG|Playback panic|USER_SAVE_OOS|USER_SAVE_RESUMED|USER_SAVE_CONTINUED' replay.log | tail -30 || true
           tail -50 replay.log
