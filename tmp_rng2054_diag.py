@@ -14,7 +14,7 @@ old = """long rand_range(long lowerBound, long upperBound) {
     brogueAssert(interval > 1); // to verify that we didn't wrap around
     return lowerBound + range(interval, rogue.RNG);
 }"""
-new = """long rand_range(long lowerBound, long upperBound) {
+new = r"""long rand_range(long lowerBound, long upperBound) {
     if (upperBound <= lowerBound) {
         return lowerBound;
     }
@@ -72,7 +72,7 @@ old = """    randomNumber = (unsigned long) rand_range(0, 255);
 
     rogue.RNG = oldRNG;
 }"""
-new2 = """    randomNumber = (unsigned long) rand_range(0, 255);
+new2 = r"""    randomNumber = (unsigned long) rand_range(0, 255);
     OOSCheck(randomNumber, 1);
 
     if (getenv("OBRIEN_RNG_DIAG")
