@@ -1,0 +1,25 @@
+name: "Temporary OBrien added-static diff"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-static-diff.yml'
+
+jobs:
+  inspect:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Apply v0.2.35 and list added statics
+        run: |
+          set -euo pipefail
+          python3 apply_obrien_mod_v0_2_35.py >/tmp/apply.log
+          echo "=== added static declarations ==="
+          git diff -U0 -- src/brogue src/platform | grep -E '^\+[^+].*\bstatic\b' || true
+          echo "=== all static locals/globals in OBrien-touched files ==="
+          for f in src/brogue/Monsters.c src/brogue/RogueMain.c src/brogue/Items.c src/brogue/Time.c src/brogue/Recordings.c src/brogue/IO.c; do
+            echo "--- $f"
+            grep -nE '\bstatic\b' "$f" || true
+          done
