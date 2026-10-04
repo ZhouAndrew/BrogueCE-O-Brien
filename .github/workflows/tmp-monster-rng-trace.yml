@@ -38,15 +38,10 @@ jobs:
           from pathlib import Path
           p=Path("src/brogue/Time.c")
           s=p.read_text()
-          old='''                    } else {
-                        monstersTurn(monst);
-                    }
-
-                    for (creatureIterator it2 = iterateCreatures(monsters); hasNextCreature(it2);) {'''
-          if old not in s:
-              raise SystemExit("monster turn anchor missing")
-          new='''                    } else {
-                        unsigned long obrienRngBefore = randomNumbersGenerated;
+          needle="                        monstersTurn(monst);"
+          if s.count(needle) != 1:
+              raise SystemExit(f"monster turn call count unexpected: {s.count(needle)}")
+          replacement='''                        unsigned long obrienRngBefore = randomNumbersGenerated;
                         if (rogue.playerTurnNumber >= 2048 && rogue.playerTurnNumber <= 2063) {
                             printf("MON_RNG_BEGIN turn=%li abs=%lu name=%s id=%i loc=%i,%i state=%i mode=%i hp=%i ticks=%i flags=%lu rng=%lu\\n",
                                    rogue.playerTurnNumber, rogue.absoluteTurnNumber,
@@ -63,11 +58,8 @@ jobs:
                                    monst->loc.x, monst->loc.y, monst->currentHP, monst->ticksUntilTurn,
                                    randomNumbersGenerated, randomNumbersGenerated - obrienRngBefore);
                             fflush(stdout);
-                        }
-                    }
-
-                    for (creatureIterator it2 = iterateCreatures(monsters); hasNextCreature(it2);) {'''
-          p.write_text(s.replace(old,new,1))
+                        }'''
+          p.write_text(s.replace(needle,replacement,1))
 
           p=Path("src/brogue/Recordings.c")
           s=p.read_text()
