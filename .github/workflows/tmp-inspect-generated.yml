@@ -1,0 +1,31 @@
+name: "Temporary inspect generated migration source"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-inspect-generated.yml'
+
+jobs:
+  inspect:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Apply migration instrumentation
+        run: |
+          set -euo pipefail
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 tmp_hso_boundary_fix.py
+          python3 forensic_reencode_legacy_save.py
+          python3 forensic_reencode_event_source_fix.py
+          python3 tmp_general_reencode_3714.py
+          python3 forensic_migration_nullconsole.py
+          python3 tmp_user_save_probe.py
+          echo "=== helper definition and callsites ==="
+          grep -n -B8 -A12 'obrienMigrationRecordEventData' src/brogue/Recordings.c
+          echo "=== recordEvent ==="
+          grep -n -A40 -B5 '^void recordEvent' src/brogue/Recordings.c
+          echo "=== recallEvent ==="
+          grep -n -A130 -B5 '^void recallEvent' src/brogue/Recordings.c
