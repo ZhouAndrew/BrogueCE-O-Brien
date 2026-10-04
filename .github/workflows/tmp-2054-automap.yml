@@ -43,26 +43,23 @@ jobs:
               raise SystemExit(0)
           p=Path("src/brogue/Recordings.c")
           s=p.read_text()
-          old='''                    obrienAutoMapContinuation = true;
-                    obrienAutoApplyMagicMappingScroll(false);'''
-          if old not in s:
+          import re
+          pat=r'(?m)^(?P<i>[ \\t]*)obrienAutoMapContinuation = true;\\n(?P=i)obrienAutoApplyMagicMappingScroll\\(false\\);'
+          m=re.search(pat,s)
+          if not m:
               raise SystemExit("automap boundary anchor missing")
+          i=m.group("i")
           if mode=="noapply":
-              new='''                    obrienAutoMapContinuation = true;
-                    /* diagnostic: skip boundary map apply */'''
+              body=f'{i}obrienAutoMapContinuation = true;\\n{i}/* diagnostic: skip boundary map apply */'
           elif mode=="nocont":
-              new='''                    obrienAutoMapContinuation = false;
-                    obrienAutoApplyMagicMappingScroll(false);'''
+              body=f'{i}obrienAutoMapContinuation = false;\\n{i}obrienAutoApplyMagicMappingScroll(false);'
           elif mode=="nomap":
-              new='''                    obrienAutoMapContinuation = false;
-                    /* diagnostic: skip boundary map apply */'''
+              body=f'{i}obrienAutoMapContinuation = false;\\n{i}/* diagnostic: skip boundary map apply */'
           elif mode=="resetcont":
-              new='''                    obrienAutoMapContinuation = false;
-                    obrienAutoApplyMagicMappingScroll(false);
-                    obrienAutoMapContinuation = true;'''
+              body=f'{i}obrienAutoMapContinuation = false;\\n{i}obrienAutoApplyMagicMappingScroll(false);\\n{i}obrienAutoMapContinuation = true;'
           else:
               raise SystemExit(mode)
-          p.write_text(s.replace(old,new,1))
+          p.write_text(re.sub(pat,body,s,count=1))
           print("mode",mode)
           PY
       - name: Build
