@@ -50,14 +50,14 @@ jobs:
               obrienRechargeSecurityWeapons(monst);'''
           extra=''
           if mode=="nolightning":
-              extra='''    if (rogue.playerTurnNumber == 2054 && boltIndex == BOLT_LIGHTNING) {
-                  printf("HSO_PROBE suppress lightning at turn 2054\\n"); fflush(stdout);
+              extra='''    if (rogue.playerTurnNumber == 2053 && boltIndex == BOLT_LIGHTNING) {
+                  printf("HSO_PROBE suppress lightning at turn 2053\\n"); fflush(stdout);
                   return false;
               }
           '''
           elif mode=="nobolts":
-              extra='''    if (rogue.playerTurnNumber == 2054) {
-                  printf("HSO_PROBE suppress bolt %d at turn 2054\\n", (int) boltIndex); fflush(stdout);
+              extra='''    if (rogue.playerTurnNumber == 2053) {
+                  printf("HSO_PROBE suppress bolt %d at turn 2053\\n", (int) boltIndex); fflush(stdout);
                   return false;
               }
           '''
