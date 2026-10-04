@@ -1,0 +1,114 @@
+name: "Temporary monster RNG trace"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-monster-rng-trace.yml'
+  workflow_dispatch:
+
+jobs:
+  trace:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Reconstruct true original save
+        run: |
+          set -euo pipefail
+          cat tmp_user_save_b64.part00 tmp_user_save_b64.part01 tmp_user_save_b64.part02 \
+              tmp_user_save_b64.part03 tmp_user_save_b64.part04 tmp_user_save_b64.part05 \
+              tmp_user_save_b64.part06 | base64 -d > user.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("user.broguesave"); b=bytearray(p.read_bytes())
+          assert (b[11104],b[11109])==(105,71)
+          b[11104],b[11109]=183,56
+          p.write_bytes(b)
+          PY
+
+      - name: Apply v0.2.36 and trace monster turns
+        run: |
+          set -euo pipefail
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 tmp_user_save_probe.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("src/brogue/Time.c")
+          s=p.read_text()
+          old='''                    } else {
+                          monstersTurn(monst);
+                      }
+
+                      // Make sure it didn't die during its turn.'''
+          old=old.replace("                          monstersTurn","                        monstersTurn").replace("                      }","                    }").replace("                      //","                    //")
+          if old not in s:
+              # use exact source indentation
+              old='''                    } else {
+                        monstersTurn(monst);
+                    }
+
+                    // Make sure it didn't die during its turn.'''
+          if old not in s:
+              raise SystemExit("monster turn anchor missing")
+          new='''                    } else {
+                        unsigned long obrienRngBefore = randomNumbersGenerated;
+                        if (rogue.playerTurnNumber >= 2048 && rogue.playerTurnNumber <= 2063) {
+                            printf("MON_RNG_BEGIN turn=%li abs=%lu name=%s id=%i loc=%i,%i state=%i mode=%i hp=%i ticks=%i Lflag=%lu rng=%lu\\n",
+                                   rogue.playerTurnNumber, rogue.absoluteTurnNumber,
+                                   monst->info.monsterName, monst->info.monsterID,
+                                   monst->loc.x, monst->loc.y, monst->creatureState,
+                                   monst->creatureMode, monst->currentHP, monst->ticksUntilTurn,
+                                   monst->bookkeepingFlags, obrienRngBefore);
+                            fflush(stdout);
+                        }
+                        monstersTurn(monst);
+                        if (rogue.playerTurnNumber >= 2048 && rogue.playerTurnNumber <= 2063) {
+                            printf("MON_RNG_END turn=%li name=%s alive=%i loc=%i,%i hp=%i ticks=%i rng=%lu delta=%lu\\n",
+                                   rogue.playerTurnNumber, monst->info.monsterName,
+                                   !(monst->bookkeepingFlags & (MB_IS_DYING | MB_HAS_DIED)),
+                                   monst->loc.x, monst->loc.y, monst->currentHP, monst->ticksUntilTurn,
+                                   randomNumbersGenerated, randomNumbersGenerated - obrienRngBefore);
+                            fflush(stdout);
+                        }
+                    }
+
+                    // Make sure it didn't die during its turn.'''
+          p.write_text(s.replace(old,new,1))
+
+          p=Path("src/brogue/Recordings.c")
+          s=p.read_text()
+          old='''    randomNumber = (unsigned long) rand_range(0, 255);
+              OOSCheck(randomNumber, 1);'''.replace("              OOSCheck","    OOSCheck")
+          if old not in s:
+              raise SystemExit("RNGCheck log anchor missing")
+          new='''    randomNumber = (unsigned long) rand_range(0, 255);
+              if (rogue.playerTurnNumber >= 2048 && rogue.playerTurnNumber <= 2063) {
+                  printf("TURN_CHECK turn=%li abs=%lu rngCount=%lu value=%lu\\n",
+                         rogue.playerTurnNumber, rogue.absoluteTurnNumber,
+                         randomNumbersGenerated, randomNumber);
+                  fflush(stdout);
+              }
+              OOSCheck(randomNumber, 1);'''.replace("              if","    if").replace("                  printf","        printf").replace("                         rogue","               rogue").replace("                         random","               random").replace("                  fflush","        fflush").replace("              }","    }").replace("              OOSCheck","    OOSCheck")
+          p.write_text(s.replace(old,new,1))
+          PY
+          make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
+
+      - name: Trace through first mismatch
+        shell: bash
+        run: |
+          set +e
+          OBRIEN_USER_SAVE_PROBE=1 ./bin/brogue --variant obrien -o user.broguesave > trace.log 2>&1
+          rc=$?
+          set -e
+          echo "RC=$rc"
+          grep -E 'MON_RNG_|TURN_CHECK|Expected RNG|USER_SAVE_OOS' trace.log | tail -400
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: monster-rng-trace
+          path: trace.log
+          if-no-files-found: error
