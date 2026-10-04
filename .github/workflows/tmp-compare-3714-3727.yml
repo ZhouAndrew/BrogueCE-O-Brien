@@ -1,0 +1,62 @@
+name: "Temporary compare 3714 vs recovered 3727"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-compare-3714-3727.yml'
+  workflow_dispatch:
+
+jobs:
+  compare:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Reconstruct user 3714 true original
+        run: |
+          set -euo pipefail
+          cat tmp_user_save_b64.part00 tmp_user_save_b64.part01 tmp_user_save_b64.part02 \
+              tmp_user_save_b64.part03 tmp_user_save_b64.part04 tmp_user_save_b64.part05 \
+              tmp_user_save_b64.part06 | base64 -d > user3714.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("user3714.broguesave"); b=bytearray(p.read_bytes())
+          assert (b[11104],b[11109]) == (105,71)
+          b[11104],b[11109] = 183,56
+          p.write_bytes(b)
+          print("user",len(b),int.from_bytes(b[24:28],"big"),int.from_bytes(b[32:36],"big"))
+          PY
+      - name: Compare byte streams
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from difflib import SequenceMatcher
+          u=Path("user3714.broguesave").read_bytes()
+          r=Path("demo/OBrien_3727turn_recovered.broguesave").read_bytes()
+          print("sizes",len(u),len(r))
+          print("headers user",u[:36].hex())
+          print("headers rec ",r[:36].hex())
+          us=u[36:]; rs=r[36:]
+          # longest common prefix/suffix
+          p=0
+          while p<min(len(us),len(rs)) and us[p]==rs[p]: p+=1
+          s=0
+          while s<min(len(us)-p,len(rs)-p) and us[-1-s]==rs[-1-s]: s+=1
+          print("stream_common_prefix",p,"abs",36+p)
+          print("stream_common_suffix",s)
+          print("first_user",us[p:p+32].hex())
+          print("first_rec ",rs[p:p+32].hex())
+          sm=SequenceMatcher(a=us,b=rs,autojunk=False)
+          ops=sm.get_opcodes()
+          print("ratio",sm.ratio(),"opcount",len(ops))
+          for tag,i1,i2,j1,j2 in ops[:120]:
+              if tag!="equal":
+                  print("OP",tag,"u",i1,i2,"abs",36+i1,36+i2,"r",j1,j2,"abs",36+j1,36+j2,
+                        "ulen",i2-i1,"rlen",j2-j1,
+                        "ubytes",us[i1:min(i2,i1+24)].hex(),
+                        "rbytes",rs[j1:min(j2,j1+24)].hex())
+          print("matching_blocks_tail")
+          for m in sm.get_matching_blocks()[-20:]:
+              print("MB",m.a,m.b,m.size,"abs",36+m.a,36+m.b)
+          PY
