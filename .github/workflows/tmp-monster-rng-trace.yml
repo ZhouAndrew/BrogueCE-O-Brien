@@ -39,24 +39,16 @@ jobs:
           p=Path("src/brogue/Time.c")
           s=p.read_text()
           old='''                    } else {
-                          monstersTurn(monst);
-                      }
-
-                      // Make sure it didn't die during its turn.'''
-          old=old.replace("                          monstersTurn","                        monstersTurn").replace("                      }","                    }").replace("                      //","                    //")
-          if old not in s:
-              # use exact source indentation
-              old='''                    } else {
                         monstersTurn(monst);
                     }
 
-                    // Make sure it didn't die during its turn.'''
+                    for (creatureIterator it2 = iterateCreatures(monsters); hasNextCreature(it2);) {'''
           if old not in s:
               raise SystemExit("monster turn anchor missing")
           new='''                    } else {
                         unsigned long obrienRngBefore = randomNumbersGenerated;
                         if (rogue.playerTurnNumber >= 2048 && rogue.playerTurnNumber <= 2063) {
-                            printf("MON_RNG_BEGIN turn=%li abs=%lu name=%s id=%i loc=%i,%i state=%i mode=%i hp=%i ticks=%i Lflag=%lu rng=%lu\\n",
+                            printf("MON_RNG_BEGIN turn=%li abs=%lu name=%s id=%i loc=%i,%i state=%i mode=%i hp=%i ticks=%i flags=%lu rng=%lu\\n",
                                    rogue.playerTurnNumber, rogue.absoluteTurnNumber,
                                    monst->info.monsterName, monst->info.monsterID,
                                    monst->loc.x, monst->loc.y, monst->creatureState,
@@ -66,16 +58,15 @@ jobs:
                         }
                         monstersTurn(monst);
                         if (rogue.playerTurnNumber >= 2048 && rogue.playerTurnNumber <= 2063) {
-                            printf("MON_RNG_END turn=%li name=%s alive=%i loc=%i,%i hp=%i ticks=%i rng=%lu delta=%lu\\n",
+                            printf("MON_RNG_END turn=%li name=%s loc=%i,%i hp=%i ticks=%i rng=%lu delta=%lu\\n",
                                    rogue.playerTurnNumber, monst->info.monsterName,
-                                   !(monst->bookkeepingFlags & (MB_IS_DYING | MB_HAS_DIED)),
                                    monst->loc.x, monst->loc.y, monst->currentHP, monst->ticksUntilTurn,
                                    randomNumbersGenerated, randomNumbersGenerated - obrienRngBefore);
                             fflush(stdout);
                         }
                     }
 
-                    // Make sure it didn't die during its turn.'''
+                    for (creatureIterator it2 = iterateCreatures(monsters); hasNextCreature(it2);) {'''
           p.write_text(s.replace(old,new,1))
 
           p=Path("src/brogue/Recordings.c")
