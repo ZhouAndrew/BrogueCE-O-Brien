@@ -1,0 +1,81 @@
+name: "Temporary 2054 HSO action probe"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-2054-hso.yml'
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [normal, nolightning, nobolts]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Reconstruct original user save
+        run: |
+          cat tmp_user_save_b64.part00 tmp_user_save_b64.part01 tmp_user_save_b64.part02 \
+              tmp_user_save_b64.part03 tmp_user_save_b64.part04 tmp_user_save_b64.part05 \
+              tmp_user_save_b64.part06 | base64 -d > user.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("user.broguesave"); b=bytearray(p.read_bytes())
+          b[11104]=183; b[11109]=56; p.write_bytes(b)
+          PY
+      - name: Apply v0.2.36 and probes
+        run: |
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 tmp_hso_boundary_fix.py
+          python3 tmp_user_save_probe.py
+          python3 tmp_rng2054_diag.py
+      - name: Apply HSO action probe
+        env:
+          MODE: ${{ matrix.mode }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          mode=os.environ["MODE"]
+          if mode=="normal": raise SystemExit(0)
+          p=Path("src/brogue/Monsters.c"); s=p.read_text()
+          old='''static boolean obrienSecurityBoltAvailable(creature *monst, enum boltType boltIndex) {
+              if (!obrienIsSecurityHologram(monst)) {
+                  return true;
+              }
+              obrienRechargeSecurityWeapons(monst);'''
+          extra=''
+          if mode=="nolightning":
+              extra='''    if (rogue.playerTurnNumber == 2054 && boltIndex == BOLT_LIGHTNING) {
+                  printf("HSO_PROBE suppress lightning at turn 2054\\n"); fflush(stdout);
+                  return false;
+              }
+          '''
+          elif mode=="nobolts":
+              extra='''    if (rogue.playerTurnNumber == 2054) {
+                  printf("HSO_PROBE suppress bolt %d at turn 2054\\n", (int) boltIndex); fflush(stdout);
+                  return false;
+              }
+          '''
+          new='''static boolean obrienSecurityBoltAvailable(creature *monst, enum boltType boltIndex) {
+              if (!obrienIsSecurityHologram(monst)) {
+                  return true;
+              }
+          '''+extra+'''    obrienRechargeSecurityWeapons(monst);'''
+          if old not in s: raise SystemExit("bolt availability anchor missing")
+          p.write_text(s.replace(old,new,1))
+          PY
+      - name: Build and run
+        shell: bash
+        run: |
+          make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue >/dev/null
+          set +e
+          OBRIEN_RNG_DIAG=1 OBRIEN_USER_SAVE_PROBE=1 ./bin/brogue --variant obrien -o user.broguesave > probe.log 2>&1
+          rc=$?
+          set -e
+          echo "MODE=${{ matrix.mode }} RC=$rc"
+          grep -E 'HSO_PROBE|RNG_AFTER_2053|RNG_PEEK offset=75|RNG_CALL player=2054.*0\.\.255|Expected RNG output|USER_SAVE_OOS' probe.log | tail -30
