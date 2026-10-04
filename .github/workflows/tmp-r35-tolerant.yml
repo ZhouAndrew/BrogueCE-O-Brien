@@ -38,12 +38,9 @@ jobs:
           from pathlib import Path
           p=Path("src/brogue/Recordings.c")
           s=p.read_text()
-          old='''            } else if (recordedNumber != x) {
-                printf("Expected RNG output of %li; got %i.\\n", recordedNumber, (int) x);
-                playbackPanic();
-            }'''
-          if old not in s:
-              raise SystemExit("OOS mismatch anchor missing")
+          start=s.index("            } else if (recordedNumber != x) {")
+          end=s.index("            }\n        }\n    } else {", start) + len("            }")
+          old=s[start:end]
           new='''            } else if (recordedNumber != x) {
                 if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
                     && obrienStrictReplayRuleset35()
@@ -61,7 +58,7 @@ jobs:
                     playbackPanic();
                 }
             }'''
-          p.write_text(s.replace(old,new,1))
+          p.write_text(s[:start] + new + s[end:])
           PY
           make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
           ./bin/brogue --version | tee version.txt
