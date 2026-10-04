@@ -1,0 +1,107 @@
+name: "Temporary ruleset35 RNG resync probe"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-rng-resync.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Reconstruct true original save
+        run: |
+          set -euo pipefail
+          cat tmp_user_save_b64.part00 tmp_user_save_b64.part01 tmp_user_save_b64.part02 \
+              tmp_user_save_b64.part03 tmp_user_save_b64.part04 tmp_user_save_b64.part05 \
+              tmp_user_save_b64.part06 | base64 -d > user-original.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("user-original.broguesave")
+          b=bytearray(p.read_bytes())
+          assert (b[11104], b[11109]) == (105, 71)
+          b[11104], b[11109] = 183, 56
+          p.write_bytes(b)
+          assert len(b) == 20541
+          PY
+
+      - name: Apply v0.2.36 plus historical RNG resync probe
+        run: |
+          set -euo pipefail
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 tmp_user_save_probe.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("src/brogue/Recordings.c")
+          s=p.read_text()
+          old='''            } else if (recordedNumber != x) {
+                      printf("Expected RNG output of %li; got %i.\\n", recordedNumber, (int) x);
+                      playbackPanic();
+                  }'''
+          old=old.replace("                      ", "                ")
+          if old not in s:
+              raise SystemExit("OOS mismatch anchor not found")
+          new='''            } else if (recordedNumber != x) {
+                      if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
+                          && obrienStrictReplayRuleset35()
+                          && numberOfBytes == 1) {
+                          unsigned long candidate = x;
+                          short skipped = 0;
+                          while (candidate != recordedNumber && skipped < 64) {
+                              candidate = (unsigned long) rand_range(0, 255);
+                              skipped++;
+                          }
+                          if (candidate == recordedNumber) {
+                              printf("OBRIEN_R35_RNG_RESYNC turn=%li skipped=%i from=%lu to=%lu\\n",
+                                     rogue.playerTurnNumber, skipped, x, recordedNumber);
+                              fflush(stdout);
+                              return;
+                          }
+                          printf("OBRIEN_R35_RNG_RESYNC_FAIL turn=%li scanned=%i expected=%lu initial=%lu last=%lu\\n",
+                                 rogue.playerTurnNumber, skipped, recordedNumber, x, candidate);
+                          fflush(stdout);
+                      }
+                      printf("Expected RNG output of %li; got %i.\\n", recordedNumber, (int) x);
+                      playbackPanic();
+                  }'''
+          new=new.replace("                      ", "                ")
+          p.write_text(s.replace(old,new,1))
+          PY
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
+          ./bin/brogue --version
+
+      - name: Replay through saved turn and continue
+        shell: bash
+        run: |
+          set +e
+          cp user-original.broguesave strict.broguesave
+          OBRIEN_USER_SAVE_PROBE=1 ./bin/brogue --variant obrien -o strict.broguesave > replay.log 2>&1
+          rc=$?
+          set -e
+          echo "RC=$rc"
+          echo "--- resync summary ---"
+          grep -E 'OBRIEN_R35_RNG_RESYNC|Expected RNG|USER_SAVE_' replay.log | tail -250 || true
+          echo "resync_count=$(grep -c 'OBRIEN_R35_RNG_RESYNC turn=' replay.log || true)"
+          echo "resync_fail_count=$(grep -c 'OBRIEN_R35_RNG_RESYNC_FAIL' replay.log || true)"
+          test "$rc" = 0
+          grep -q 'USER_SAVE_RESUMED turn=3714 target=3714' replay.log
+          grep -q 'USER_SAVE_CONTINUED turn=3715 expected=3715' replay.log
+          ! grep -q 'USER_SAVE_OOS' replay.log
+          ! grep -q 'OBRIEN_R35_RNG_RESYNC_FAIL' replay.log
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ruleset35-rng-resync-probe
+          path: replay.log
+          if-no-files-found: error
