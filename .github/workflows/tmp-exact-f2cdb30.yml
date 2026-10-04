@@ -37,6 +37,12 @@ jobs:
                 "turns",int.from_bytes(b[24:28],"big"),
                 "ruleset",b[14],"compat",b[13],"variant",hex(b[15]))
           PY
+      - name: Add first-OOS probe to exact historical executable
+        working-directory: historical
+        run: |
+          set -euo pipefail
+          python3 ../diag/tmp_user_save_probe.py
+
       - name: Build exact historical executable
         working-directory: historical
         run: |
@@ -48,7 +54,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          timeout 45s ./bin/brogue --variant obrien -o user3714.broguesave > replay.log 2>&1
+          OBRIEN_USER_SAVE_PROBE=1 timeout 45s ./bin/brogue --variant obrien -o user3714.broguesave > replay.log 2>&1
           rc=$?
           set -e
           echo "RC=$rc"
