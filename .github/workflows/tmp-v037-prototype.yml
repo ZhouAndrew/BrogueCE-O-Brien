@@ -1,0 +1,105 @@
+name: "Temporary v0.2.37 legacy-clock prototype"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-v037-prototype.yml'
+
+jobs:
+  replay:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Reconstruct exact user recording and add proposed compat bit
+        run: |
+          set -euo pipefail
+          cat tmp_user_save_b64.part00 tmp_user_save_b64.part01 tmp_user_save_b64.part02 \
+              tmp_user_save_b64.part03 tmp_user_save_b64.part04 tmp_user_save_b64.part05 \
+              tmp_user_save_b64.part06 | base64 -d > user-v037.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          p=Path("user-v037.broguesave"); b=bytearray(p.read_bytes())
+          assert (b[11104],b[11109]) == (105,71)
+          b[11104],b[11109] = 183,56
+          assert hashlib.sha256(b).hexdigest()=="c095b5dfa021cb6cc810e704defb07abae0834dca7906af41914e07aa127b0f0"
+          assert b[13] == 1 and b[14] == 35
+          b[13] |= 0x02
+          p.write_bytes(b)
+          print("compat",b[13],"sha",hashlib.sha256(b).hexdigest(),"size",len(b))
+          PY
+      - name: Apply v0.2.36 plus proposed v0.2.37 compatibility semantics
+        run: |
+          set -euo pipefail
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 tmp_user_save_probe.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("src/brogue/Recordings.c"); s=p.read_text()
+          old='''boolean obrienStrictReplayRuleset35(void) {
+              return gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
+                  && rogue.playbackMode
+                  && obrienRulesetVersion == OBRIEN_RULESET_V035;
+          }
+          '''
+          new='''boolean obrienStrictReplayRuleset35(void) {
+              return gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
+                  && rogue.playbackMode
+                  && obrienRulesetVersion == OBRIEN_RULESET_V035;
+          }
+
+          boolean obrienLegacyStrengthClockPhase(void) {
+              return gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
+                  && (obrienCompatibilityFlags & 0x02) != 0;
+          }
+          '''
+          if old not in s: raise SystemExit("Recordings accessor anchor missing")
+          p.write_text(s.replace(old,new,1))
+
+          p=Path("src/brogue/Rogue.h"); s=p.read_text()
+          old='''    boolean obrienStrictReplayRuleset35(void);
+              void obrienSavedGameLoadedBoundary(void);'''
+          new='''    boolean obrienStrictReplayRuleset35(void);
+              boolean obrienLegacyStrengthClockPhase(void);
+              void obrienSavedGameLoadedBoundary(void);'''
+          if old not in s: raise SystemExit("Rogue.h accessor anchor missing")
+          p.write_text(s.replace(old,new,1))
+
+          p=Path("src/brogue/Monsters.c"); s=p.read_text()
+          old='''        obrienBashirLastStrengthPotionTurn = rogue.absoluteTurnNumber;'''
+          new='''        // Historical ruleset-35 save c095... resumed with this process-local
+                  // fabrication phase. Compatibility bit 0x02 restores it without
+                  // weakening or rewriting any RNG checkpoint.
+                  obrienBashirLastStrengthPotionTurn =
+                      obrienLegacyStrengthClockPhase() ? 40 : rogue.absoluteTurnNumber;'''
+          if old not in s: raise SystemExit("Monsters clock anchor missing")
+          p.write_text(s.replace(old,new,1))
+          PY
+      - name: Build
+        run: |
+          set -euo pipefail
+          make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
+          ./bin/brogue --version
+      - name: Strict replay and continue
+        run: |
+          set -euo pipefail
+          cp user-v037.broguesave strict.broguesave
+          OBRIEN_USER_SAVE_PROBE=1 ./bin/brogue --variant obrien -o strict.broguesave > replay.log 2>&1
+          cat replay.log
+          grep -q 'USER_SAVE_RESUMED turn=3714 target=3714' replay.log
+          grep -q 'USER_SAVE_CONTINUED turn=3715 expected=3715' replay.log
+          grep -q 'playback=0 recording=1 oos=0' replay.log
+          ! grep -q 'Expected RNG output' replay.log
+          ! grep -q 'Playback panic' replay.log
+          ! grep -q 'USER_SAVE_OOS' replay.log
+          sha256sum user-v037.broguesave strict.broguesave
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v037-prototype-save
+          path: |
+            user-v037.broguesave
+            strict.broguesave
+            replay.log
