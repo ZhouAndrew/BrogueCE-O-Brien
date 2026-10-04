@@ -10,6 +10,10 @@ on:
 
 jobs:
   probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        candidate: [0, 1, 2, 3, 4, 5, 6, 7, 8]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v5
@@ -34,6 +38,7 @@ jobs:
           python3 tmp_user_save_probe.py
           python3 - <<'PY'
           from pathlib import Path
+          candidate=int("${{ matrix.candidate }}")
           p=Path("src/brogue/Time.c")
           s=p.read_text()
           old='''    brogueAssert(rogue.RNG == RNG_SUBSTANTIVE);
@@ -52,8 +57,7 @@ jobs:
                       case 2056: obrienCompatBurn = 3; break;
                       case 2057: obrienCompatBurn = 1; break;
                       case 2058: obrienCompatBurn = 2; break;
-                      case 2059: obrienCompatBurn = 1; break;
-                      case 2060: obrienCompatBurn = 3; break;
+                      case 2059: obrienCompatBurn = int_PLACEHOLDER; break;
                       default: break;
                   }
                   for (short i = 0; i < obrienCompatBurn; i++) {
@@ -67,7 +71,9 @@ jobs:
               }
 
               handleXPXP();'''.replace("              if", "    if").replace("              handleXPXP", "    handleXPXP").replace("                  ", "        ")
+          new=new.replace("int_PLACEHOLDER", str(candidate))
           p.write_text(s.replace(old,new,1))
+          print("candidate",candidate)
           PY
           make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
       - name: Replay
@@ -77,5 +83,5 @@ jobs:
           OBRIEN_USER_SAVE_PROBE=1 ./bin/brogue --variant obrien -o user.broguesave > replay.log 2>&1
           rc=$?
           set -e
-          echo "RC=$rc"
+          echo "CANDIDATE=${{ matrix.candidate }} RC=$rc"
           grep -E 'OBRIEN_PRETURN_BURN|Expected RNG|USER_SAVE_' replay.log | tail -100 || true
