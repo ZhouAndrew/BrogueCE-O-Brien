@@ -1,4 +1,4 @@
-name: "Temporary 3714 first-divergence diagnostic"
+name: "Temporary 3714 original-save boundary matrix"
 
 on:
   push:
@@ -6,16 +6,19 @@ on:
       - 'chatgpt/replay-3714-relock'
     paths:
       - '.github/workflows/tmp-relock-3714.yml'
-      - 'tmp_rng2054_diag.py'
   workflow_dispatch:
 
 jobs:
-  diagnose:
+  replay:
+    strategy:
+      fail-fast: false
+      matrix:
+        boundary: [intended, fullreset]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v5
 
-      - name: Reconstruct exact user save
+      - name: Reconstruct exact ORIGINAL user save
         shell: bash
         run: |
           set -euo pipefail
@@ -24,43 +27,54 @@ jobs:
               tmp_user_save_b64.part06 | base64 -d > user-input.broguesave
           test "$(stat -c %s user-input.broguesave)" = "20541"
           echo "6f646658e910f07fa52f83d5edda354f039b64bf303abbe8176b1f9dd5edb021  user-input.broguesave" | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("user-input.broguesave")
+          b=bytearray(p.read_bytes())
+          assert b[11104] == 105 and b[11109] == 71
+          b[11104] = 183
+          b[11109] = 56
+          p.write_bytes(b)
+          PY
+          echo "c095b5dfa021cb6cc810e704defb07abae0834dca7906af41914e07aa127b0f0  user-input.broguesave" | sha256sum -c -
 
-      - name: Apply v0.2.36 compatibility and diagnostics
+      - name: Apply exact v0.2.36
         run: |
           set -euo pipefail
           python3 apply_obrien_mod_v0_2_36.py
           python3 apply_obrien_mod_v0_2_36.py
-          python3 tmp_hso_boundary_fix.py
+          if [ "${{ matrix.boundary }}" = "fullreset" ]; then
+            python3 tmp_hso_boundary_fix.py
+          fi
           python3 tmp_user_save_probe.py
-          python3 tmp_rng2054_diag.py
 
-      - name: Build headless diagnostic binary
+      - name: Build headless binary
         run: |
           set -euo pipefail
           make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
           ./bin/brogue --version | tee version.txt
           grep -q "O'Brien Must Survive v0.2.36" version.txt
 
-      - name: Run strict replay to first divergence
+      - name: Strict replay original save
         shell: bash
         run: |
           set +e
           cp user-input.broguesave strict-source.broguesave
-          OBRIEN_RNG_DIAG=1 OBRIEN_USER_SAVE_PROBE=1 \
-            ./bin/brogue --variant obrien -o strict-source.broguesave > diagnostic.log 2>&1
+          OBRIEN_USER_SAVE_PROBE=1 \
+            ./bin/brogue --variant obrien -o strict-source.broguesave > replay.log 2>&1
           rc=$?
           set -e
-          echo "$rc" > diagnostic.rc
-          cat diagnostic.log
-          echo "--- focused diagnostic ---"
-          grep -E 'RNG_AFTER|RNG_PEEK|RNG_CALL|Expected RNG|USER_SAVE_OOS|OBRIEN_BOUNDARY' diagnostic.log || true
+          echo "$rc" > replay.rc
+          cat replay.log
+          echo "--- summary ---"
+          grep -E 'Expected RNG|Playback panic|USER_SAVE_|OBRIEN_BOUNDARY|Unrecognized event|Event type mismatch' replay.log || true
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: 3714-first-divergence-diagnostic
+          name: original-save-${{ matrix.boundary }}
           path: |
-            diagnostic.log
-            diagnostic.rc
+            replay.log
+            replay.rc
             version.txt
           if-no-files-found: error
