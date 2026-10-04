@@ -27,9 +27,9 @@ new = """long rand_range(long lowerBound, long upperBound) {
     retval = lowerBound + range(interval, rogue.RNG);
     if (getenv("OBRIEN_RNG_DIAG")
         && rogue.RNG == RNG_SUBSTANTIVE
-        && rogue.playerTurnNumber >= 2053
-        && rogue.playerTurnNumber <= 2054) {
-        printf("RNG_CALL player=%li absolute=%lu count=%lu bounds=%ld..%ld value=%ld\\n",
+        && rogue.playerTurnNumber >= 2054
+        && rogue.playerTurnNumber <= 2056) {
+        printf("RNG_CALL player=%li absolute=%lu count=%lu bounds=%ld..%ld value=%ld\n",
                rogue.playerTurnNumber, rogue.absoluteTurnNumber,
                randomNumbersGenerated, lowerBound, upperBound, retval);
         fflush(stdout);
@@ -46,7 +46,7 @@ void obrienDebugPeekSubstantiveBytes(short count) {
         do {
             r = ranval(&copy) / div;
         } while (r >= 256);
-        printf("RNG_PEEK offset=%d byte=%ld\\n", i, r);
+        printf("RNG_PEEK offset=%d byte=%ld\n", i, r);
     }
     fflush(stdout);
 }"""
@@ -75,11 +75,12 @@ old = """    randomNumber = (unsigned long) rand_range(0, 255);
 new2 = """    randomNumber = (unsigned long) rand_range(0, 255);
     OOSCheck(randomNumber, 1);
 
-    if (getenv("OBRIEN_RNG_DIAG") && rogue.playerTurnNumber == 2053) {
-        printf("RNG_AFTER_2053 player=%li absolute=%lu count=%lu check=%lu\\n",
+    if (getenv("OBRIEN_RNG_DIAG")
+        && (rogue.playerTurnNumber == 2054 || rogue.playerTurnNumber == 2055)) {
+        printf("RNG_AFTER player=%li absolute=%lu count=%lu check=%lu\n",
                rogue.playerTurnNumber, rogue.absoluteTurnNumber,
                randomNumbersGenerated, randomNumber);
-        obrienDebugPeekSubstantiveBytes(96);
+        obrienDebugPeekSubstantiveBytes(128);
     }
 
     rogue.RNG = oldRNG;
@@ -87,4 +88,4 @@ new2 = """    randomNumber = (unsigned long) rand_range(0, 255);
 if old not in s:
     raise SystemExit("RNGCheck body anchor missing")
 p.write_text(s.replace(old, new2, 1), encoding="utf-8")
-print("turn-2054 RNG diagnostic instrumentation applied")
+print("turn-2056 RNG diagnostic instrumentation applied")
