@@ -37,6 +37,12 @@ jobs:
                 "turns",int.from_bytes(b[24:28],"big"),
                 "ruleset",b[14],"compat",b[13],"variant",hex(b[15]))
           PY
+      - name: Apply historical OBrien v0.2.35 exactly as shipped
+        working-directory: historical
+        run: |
+          set -euo pipefail
+          python3 apply_obrien_mod_v0_2_35.py
+
       - name: Add first-OOS probe to exact historical executable
         working-directory: historical
         run: |
