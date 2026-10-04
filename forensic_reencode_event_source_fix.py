@@ -51,8 +51,8 @@ repl(
 
 repl(
     '''void cancelKeystroke() {\n    if (rogue.playbackMode && obrienMigrationActive) {\n        brogueAssert(obrienMigrationLength >= 3);\n        obrienMigrationLength -= 3;\n        return;\n    }\n    brogueAssert(locationInRecordingBuffer >= 3);\n    locationInRecordingBuffer -= 3; // a keystroke is encoded into 3 bytes\n    recordingLocation -= 3;\n}''',
-    '''void cancelKeystroke() {\n    brogueAssert(locationInRecordingBuffer >= 3);\n    locationInRecordingBuffer -= 3; // a keystroke is encoded into 3 bytes\n    recordingLocation -= 3;\n}''',
-    'restore cancelKeystroke',
+    '''void cancelKeystroke() {\n    if (rogue.playbackMode && obrienMigrationActive) {\n        // The source keystroke was already consumed by recallEvent() and must\n        // never be rewound. Cancel only the mirrored event in the regenerated\n        // recording; otherwise playback can reread the same source command\n        // millions of times.\n        brogueAssert(obrienMigrationLength >= 3);\n        obrienMigrationLength -= 3;\n        if (obrienMigrationEventCount > 0) {\n            obrienMigrationEventCount--;\n        }\n        return;\n    }\n    brogueAssert(locationInRecordingBuffer >= 3);\n    locationInRecordingBuffer -= 3; // a keystroke is encoded into 3 bytes\n    recordingLocation -= 3;\n}''',
+    'keep source position stable when a migrated keystroke is cancelled',
 )
 
 # The helper is deliberately placed after compressKeystroke/recordNumber are
