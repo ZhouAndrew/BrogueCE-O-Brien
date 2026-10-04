@@ -1,0 +1,167 @@
+name: "Temporary auto-solve historical RNG burns"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-auto-burn-solver.yml'
+  workflow_dispatch:
+
+jobs:
+  solve:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Reconstruct true original save
+        run: |
+          set -euo pipefail
+          cat tmp_user_save_b64.part00 tmp_user_save_b64.part01 tmp_user_save_b64.part02 \
+              tmp_user_save_b64.part03 tmp_user_save_b64.part04 tmp_user_save_b64.part05 \
+              tmp_user_save_b64.part06 | base64 -d > user.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("user.broguesave"); b=bytearray(p.read_bytes())
+          assert (b[11104],b[11109])==(105,71)
+          b[11104],b[11109]=183,56
+          p.write_bytes(b)
+          assert len(b)==20541
+          PY
+
+      - name: Build environment-driven compatibility probe
+        run: |
+          set -euo pipefail
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 tmp_hso_boundary_fix.py
+          python3 tmp_user_save_probe.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("src/brogue/Time.c")
+          s=p.read_text()
+          old='''    brogueAssert(rogue.RNG == RNG_SUBSTANTIVE);
+
+              handleXPXP();'''.replace("              handleXPXP", "    handleXPXP")
+          if old not in s:
+              raise SystemExit("playerTurnEnded anchor missing")
+          new=r'''    brogueAssert(rogue.RNG == RNG_SUBSTANTIVE);
+
+              if (rogue.playbackMode && gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {
+                  char obrienBurnName[64];
+                  const char *obrienBurnValue;
+                  short obrienCompatBurn = 0;
+                  snprintf(obrienBurnName, sizeof(obrienBurnName),
+                           "OBRIEN_BURN_%li", rogue.playerTurnNumber + 1);
+                  obrienBurnValue = getenv(obrienBurnName);
+                  if (obrienBurnValue && obrienBurnValue[0]) {
+                      obrienCompatBurn = (short) atoi(obrienBurnValue);
+                  }
+                  for (short i = 0; i < obrienCompatBurn; i++) {
+                      (void) rand_range(0, 255);
+                  }
+              }
+
+              handleXPXP();'''.replace("              if", "    if").replace("                  ", "        ").replace("              handleXPXP", "    handleXPXP")
+          p.write_text(s.replace(old,new,1))
+          PY
+          make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
+
+      - name: Solve burn table forward
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, re, subprocess, pathlib, json, shutil, sys, time
+
+          exe = "./bin/brogue"
+          src = pathlib.Path("user.broguesave")
+          # Already established by the earlier deterministic probes.
+          burns = {2054:2, 2055:3, 2056:2, 2057:3, 2058:1, 2059:2}
+          max_candidate = 96
+          max_steps = 80
+
+          oos_re = re.compile(r"USER_SAVE_OOS turn=(\d+)")
+          resumed_re = re.compile(r"USER_SAVE_RESUMED turn=(\d+) target=(\d+)")
+          continued_re = re.compile(r"USER_SAVE_CONTINUED turn=(\d+) expected=(\d+)")
+
+          def run(table, tag):
+              test = pathlib.Path(f"solver-{tag}.broguesave")
+              shutil.copyfile(src, test)
+              env = os.environ.copy()
+              env["OBRIEN_USER_SAVE_PROBE"] = "1"
+              for t, n in table.items():
+                  env[f"OBRIEN_BURN_{t}"] = str(n)
+              cp = subprocess.run([exe, "--variant", "obrien", "-o", str(test)],
+                                  env=env, text=True, stdout=subprocess.PIPE,
+                                  stderr=subprocess.STDOUT, timeout=30)
+              out = cp.stdout
+              m = oos_re.search(out)
+              resumed = resumed_re.search(out)
+              continued = continued_re.search(out)
+              test.unlink(missing_ok=True)
+              if continued:
+                  return 10**9, cp.returncode, out
+              if resumed:
+                  return int(resumed.group(1)), cp.returncode, out
+              if m:
+                  return int(m.group(1)), cp.returncode, out
+              return -1, cp.returncode, out
+
+          baseline_turn, rc, out = run(burns, "baseline")
+          print("SOLVER baseline", baseline_turn, "rc", rc, "burns", json.dumps(burns, sort_keys=True))
+          if baseline_turn < 0:
+              print(out[-4000:])
+              raise SystemExit("baseline produced no recognizable terminal state")
+
+          for step in range(max_steps):
+              turn, rc, out = run(burns, f"check-{step}")
+              if turn >= 10**9:
+                  print("SOLVER SUCCESS", json.dumps(burns, sort_keys=True))
+                  pathlib.Path("solved-burns.json").write_text(json.dumps(burns, indent=2, sort_keys=True))
+                  pathlib.Path("solver-final.log").write_text(out)
+                  sys.exit(0)
+              if turn == 3714 and "USER_SAVE_RESUMED" in out:
+                  print("SOLVER reached saved turn but continuation status:", rc)
+              if turn < 0:
+                  print(out[-5000:])
+                  raise SystemExit("solver lost replay status")
+
+              target = turn
+              best = None
+              print(f"SOLVER target={target} searching 0..{max_candidate}")
+              for candidate in range(max_candidate + 1):
+                  trial = dict(burns)
+                  trial[target] = candidate
+                  next_turn, trc, tout = run(trial, f"t{target}-c{candidate}")
+                  score = next_turn
+                  if best is None or score > best[0]:
+                      best = (score, candidate, trc, tout)
+                  if next_turn > target:
+                      print(f"SOLVER ACCEPT turn={target} burn={candidate} next={next_turn}")
+                      burns[target] = candidate
+                      pathlib.Path("solved-burns.partial.json").write_text(
+                          json.dumps(burns, indent=2, sort_keys=True))
+                      break
+              else:
+                  score, candidate, trc, tout = best
+                  print(f"SOLVER FAILED target={target} bestCandidate={candidate} bestNext={score} rc={trc}")
+                  print(tout[-6000:])
+                  pathlib.Path("solved-burns.partial.json").write_text(
+                      json.dumps(burns, indent=2, sort_keys=True))
+                  raise SystemExit(2)
+
+          print("SOLVER step limit reached", json.dumps(burns, sort_keys=True))
+          pathlib.Path("solved-burns.partial.json").write_text(json.dumps(burns, indent=2, sort_keys=True))
+          raise SystemExit(3)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: auto-burn-solver
+          path: |
+            solved-burns.json
+            solved-burns.partial.json
+            solver-final.log
+          if-no-files-found: warn
