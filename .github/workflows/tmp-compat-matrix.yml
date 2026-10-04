@@ -47,7 +47,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          ./bin/brogue --variant obrien -o user.broguesave > replay.log 2>&1
+          OBRIEN_USER_SAVE_PROBE=1 ./bin/brogue --variant obrien -o user.broguesave > replay.log 2>&1
           rc=$?
           set -e
           echo "VERSION=${{ matrix.version }} COMPAT=${{ matrix.compat }} RC=$rc"
