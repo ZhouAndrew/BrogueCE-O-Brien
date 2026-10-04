@@ -1,0 +1,24 @@
+name: "Temporary historical added statics"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-historical-statics.yml'
+
+jobs:
+  inspect:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: f2cdb30244a8a137c4c89a6f6682600bc55c2ec9
+      - name: Apply v0.2.35 and diff statics
+        run: |
+          set -euo pipefail
+          python3 apply_obrien_mod_v0_2_35.py >/tmp/apply.log
+          echo "=== ALL ADDED STATIC LINES ==="
+          git diff -U0 -- src/brogue src/platform | grep -E '^\+[^+].*\bstatic\b' || true
+          echo "=== ADDED GLOBAL-LIKE DECLARATIONS ==="
+          git diff -U0 -- src/brogue src/platform | grep -E '^\+[^+].*(unsigned long|short|boolean|creature \*|item \*) [A-Za-z_][A-Za-z0-9_]* *= *' || true
