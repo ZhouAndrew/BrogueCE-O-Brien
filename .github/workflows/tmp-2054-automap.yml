@@ -1,0 +1,78 @@
+name: "Temporary 2054 automap boundary matrix"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-2054-automap.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [baseline, noapply, nocont, nomap, resetcont]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Reconstruct true original save
+        run: |
+          set -euo pipefail
+          cat tmp_user_save_b64.part00 tmp_user_save_b64.part01 tmp_user_save_b64.part02 \
+              tmp_user_save_b64.part03 tmp_user_save_b64.part04 tmp_user_save_b64.part05 \
+              tmp_user_save_b64.part06 | base64 -d > user.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("user.broguesave"); b=bytearray(p.read_bytes())
+          assert (b[11104],b[11109]) == (105,71)
+          b[11104],b[11109] = 183,56
+          p.write_bytes(b)
+          PY
+      - name: Apply v0.2.36 and probe
+        run: |
+          set -euo pipefail
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 tmp_user_save_probe.py
+          python3 - <<'PY'
+          from pathlib import Path
+          mode="${{ matrix.mode }}"
+          if mode=="baseline":
+              raise SystemExit(0)
+          p=Path("src/brogue/Recordings.c")
+          s=p.read_text()
+          old='''                    obrienAutoMapContinuation = true;
+                    obrienAutoApplyMagicMappingScroll(false);'''
+          if old not in s:
+              raise SystemExit("automap boundary anchor missing")
+          if mode=="noapply":
+              new='''                    obrienAutoMapContinuation = true;
+                    /* diagnostic: skip boundary map apply */'''
+          elif mode=="nocont":
+              new='''                    obrienAutoMapContinuation = false;
+                    obrienAutoApplyMagicMappingScroll(false);'''
+          elif mode=="nomap":
+              new='''                    obrienAutoMapContinuation = false;
+                    /* diagnostic: skip boundary map apply */'''
+          elif mode=="resetcont":
+              new='''                    obrienAutoMapContinuation = false;
+                    obrienAutoApplyMagicMappingScroll(false);
+                    obrienAutoMapContinuation = true;'''
+          else:
+              raise SystemExit(mode)
+          p.write_text(s.replace(old,new,1))
+          print("mode",mode)
+          PY
+      - name: Build
+        run: make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
+      - name: Replay
+        shell: bash
+        run: |
+          set +e
+          OBRIEN_USER_SAVE_PROBE=1 ./bin/brogue --variant obrien -o user.broguesave > replay.log 2>&1
+          rc=$?
+          set -e
+          echo "MODE=${{ matrix.mode }} RC=$rc"
+          grep -E 'Expected RNG|USER_SAVE_OOS|USER_SAVE_RESUMED|USER_SAVE_CONTINUED' replay.log | tail -20 || true
