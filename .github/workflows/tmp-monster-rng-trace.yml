@@ -77,6 +77,46 @@ jobs:
               OOSCheck(randomNumber, 1);'''.replace("              if","    if").replace("                  printf","        printf").replace("                         rogue","               rogue").replace("                         random","               random").replace("                  fflush","        fflush").replace("              }","    }").replace("              OOSCheck","    OOSCheck")
           p.write_text(s.replace(old,new,1))
           PY
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("src/brogue/Monsters.c")
+          s=p.read_text()
+          anchor='''    x = monst->loc.x;
+              y = monst->loc.y;'''.replace("              y", "    y")
+          if anchor not in s:
+              raise SystemExit("monstersTurn coordinate anchor missing")
+          repl='''    if (rogue.playerTurnNumber >= 2048 && rogue.playerTurnNumber <= 2063
+              && obrienIsSecurityHologram(monst)) {
+              printf("HSO_STATE turn=%li abs=%lu L=%d P=%d recharge=%lu suspended=%d storedL=%d storedP=%d hp=%d loc=%i,%i\\n",
+                     rogue.playerTurnNumber, rogue.absoluteTurnNumber,
+                     obrienSecurityLightningCharges, obrienSecurityPoisonCharges,
+                     obrienSecurityLastRechargeTurn, obrienSecuritySuspended,
+                     obrienSecurityStoredLightningCharges, obrienSecurityStoredPoisonCharges,
+                     monst->currentHP, monst->loc.x, monst->loc.y);
+              fflush(stdout);
+          }
+          x = monst->loc.x;
+          y = monst->loc.y;'''
+          p.write_text(s.replace(anchor,repl,1))
+
+          p=Path("src/brogue/Monsters.c")
+          s=p.read_text()
+          anchor='''static boolean obrienSecurityBoltAvailable(creature *monst, enum boltType boltIndex) {
+              if (!obrienIsSecurityHologram(monst)) {'''.replace("              if", "    if")
+          if anchor not in s:
+              raise SystemExit("bolt available anchor missing")
+          repl='''static boolean obrienSecurityBoltAvailable(creature *monst, enum boltType boltIndex) {
+              if (rogue.playerTurnNumber >= 2048 && rogue.playerTurnNumber <= 2063
+                  && obrienIsSecurityHologram(monst)) {
+                  printf("HSO_BOLT_TEST turn=%li bolt=%d L=%d P=%d recharge=%lu rng=%lu\\n",
+                         rogue.playerTurnNumber, (int) boltIndex,
+                         obrienSecurityLightningCharges, obrienSecurityPoisonCharges,
+                         obrienSecurityLastRechargeTurn, randomNumbersGenerated);
+                  fflush(stdout);
+              }
+              if (!obrienIsSecurityHologram(monst)) {'''.replace("              if", "    if").replace("                  &&", "        &&").replace("                  printf", "        printf").replace("                         rogue", "               rogue").replace("                         obrien", "               obrien").replace("                  fflush", "        fflush").replace("              }", "    }")
+          p.write_text(s.replace(anchor,repl,1))
+          PY
           make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
 
       - name: Trace through first mismatch
@@ -87,7 +127,7 @@ jobs:
           rc=$?
           set -e
           echo "RC=$rc"
-          grep -E 'MON_RNG_|TURN_CHECK|Expected RNG|USER_SAVE_OOS' trace.log | tail -400
+          grep -E 'MON_RNG_|HSO_STATE|HSO_BOLT_TEST|TURN_CHECK|Expected RNG|USER_SAVE_OOS' trace.log | tail -600
 
       - uses: actions/upload-artifact@v4
         if: always()
