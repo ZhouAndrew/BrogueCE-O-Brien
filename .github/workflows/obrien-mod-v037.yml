@@ -1,0 +1,103 @@
+name: "O'Brien v0.2.37 acceptance"
+
+on:
+  push:
+    branches:
+      - 'release/obrien-v0.2.37'
+  workflow_dispatch:
+
+jobs:
+  build-and-replay:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct verified historical ruleset-35 save
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin chatgpt/replay-3714-relock
+          for n in 00 01 02 03 04 05 06; do
+            git show "origin/chatgpt/replay-3714-relock:tmp_user_save_b64.part$n"
+          done | base64 -d > user-original.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          p=Path("user-original.broguesave")
+          b=bytearray(p.read_bytes())
+          # The diagnostic fixture preserved two early experimental relocks.
+          # Restore the authoritative recorded RNG bytes before acceptance.
+          assert (b[11104], b[11109]) == (105, 71)
+          b[11104], b[11109] = 183, 56
+          p.write_bytes(b)
+          assert hashlib.sha256(b).hexdigest() == "c095b5dfa021cb6cc810e704defb07abae0834dca7906af41914e07aa127b0f0"
+          assert b[13] == 1
+          assert b[14] == 35
+          assert int.from_bytes(b[24:28], "big") == 3714
+          print("verified source sha256", hashlib.sha256(b).hexdigest())
+          PY
+
+      - name: Tag only the v0.2.37 compatibility bit
+        run: |
+          set -euo pipefail
+          python3 repair_legacy_obrien_save.py             --legacy-strength-clock-compat             --output user-v037.broguesave             user-original.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          a=Path("user-original.broguesave").read_bytes()
+          b=Path("user-v037.broguesave").read_bytes()
+          assert len(a) == len(b) == 20541
+          diffs=[i for i,(x,y) in enumerate(zip(a,b)) if x != y]
+          assert diffs == [13], diffs
+          assert a[13] == 1 and b[13] == 3
+          assert a[14:] == b[14:]
+          print("repaired sha256", hashlib.sha256(b).hexdigest())
+          PY
+
+      - name: Apply v0.2.37 twice
+        run: |
+          set -euo pipefail
+          python3 apply_obrien_mod_v0_2_37.py
+          python3 apply_obrien_mod_v0_2_37.py
+          test "$(cat OBRIEN_VERSION)" = "0.2.37"
+
+      - name: Add acceptance-only replay probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show origin/chatgpt/replay-3714-relock:tmp_user_save_probe.py > /tmp/user_save_probe.py
+          python3 /tmp/user_save_probe.py
+
+      - name: Build v0.2.37 headless
+        run: |
+          set -euo pipefail
+          make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
+          ./bin/brogue --version | tee version.txt
+          grep -q "O'Brien Must Survive v0.2.37" version.txt
+
+      - name: Strict replay through turn 3714 and continue live
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp user-v037.broguesave strict-test.broguesave
+          OBRIEN_USER_SAVE_PROBE=1             ./bin/brogue --variant obrien -o strict-test.broguesave > replay.log 2>&1
+          cat replay.log
+          grep -q 'USER_SAVE_RESUMED turn=3714 target=3714' replay.log
+          grep -q 'USER_SAVE_CONTINUED turn=3715 expected=3715' replay.log
+          grep -q 'playback=0 recording=1 oos=0' replay.log
+          ! grep -q 'Expected RNG output' replay.log
+          ! grep -q 'Playback panic' replay.log
+          ! grep -q 'USER_SAVE_OOS' replay.log
+          sha256sum user-original.broguesave user-v037.broguesave strict-test.broguesave | tee checksums.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obrien-v0.2.37-verified-save
+          path: |
+            user-v037.broguesave
+            strict-test.broguesave
+            replay.log
+            checksums.txt
+            version.txt
