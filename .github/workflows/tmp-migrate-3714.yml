@@ -1,4 +1,5 @@
 name: "Temporary 3714 self-consistent migration"
+# rerun for event/check counters
 # rerun for overflow counters
 # rerun after updater shim
 # rerun after idempotent updater
