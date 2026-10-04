@@ -1,6 +1,14 @@
-# O'Brien Must Survive v0.2.33
+# O'Brien Must Survive v0.2.37
 
 This repository includes a chained updater for **Brogue CE 1.15.1**. Apply the newest updater to a clean source tree; it runs all earlier O'Brien patches in order.
+
+## v0.2.37 replay compatibility
+
+- **v0.2.36** formalizes historical ruleset-35 `SAVED_GAME_LOADED` as a deterministic replay boundary for Bashir's 2000-turn Strength-potion fabrication timer. RNG checkpoints remain strict.
+- **v0.2.37** uses previously reserved header byte 13 bit **`0x02`** to identify the verified legacy fabrication phase that existed in one class of ruleset-35 saves because the old timer lived only in process-local static state.
+- During strict playback of a tagged save, that historical phase is restored only at the recorded save/load boundary. After replay finishes and normal live play resumes, the timer returns to the ordinary current-turn rebase.
+- Tag an affected ruleset-35 save once with `python3 repair_legacy_obrien_save.py --legacy-strength-clock-compat <file>`. This changes only the compatibility byte; the event stream, seed, turn count, file length and all RNG_CHECK bytes remain unchanged.
+- New missions use ruleset generation **37**. Gameplay otherwise remains v0.2.36/v0.2.35-compatible.
 
 ## v0.2.33 design
 
