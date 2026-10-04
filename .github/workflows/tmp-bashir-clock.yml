@@ -1,0 +1,62 @@
+name: "Temporary Bashir clock recovery matrix"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-bashir-clock.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        clock: [0, 1, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 1858]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Reconstruct true original save
+        run: |
+          set -euo pipefail
+          cat tmp_user_save_b64.part00 tmp_user_save_b64.part01 tmp_user_save_b64.part02 \
+              tmp_user_save_b64.part03 tmp_user_save_b64.part04 tmp_user_save_b64.part05 \
+              tmp_user_save_b64.part06 | base64 -d > user.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("user.broguesave"); b=bytearray(p.read_bytes())
+          assert (b[11104],b[11109])==(105,71)
+          b[11104],b[11109]=183,56
+          p.write_bytes(b)
+          PY
+      - name: Apply v0.2.36 and candidate historical Bashir clock
+        run: |
+          set -euo pipefail
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 tmp_user_save_probe.py
+          python3 - <<'PY'
+          from pathlib import Path
+          clock=int("${{ matrix.clock }}")
+          p=Path("src/brogue/Monsters.c")
+          s=p.read_text()
+          old="obrienBashirLastStrengthPotionTurn = rogue.absoluteTurnNumber;"
+          if old not in s:
+              raise SystemExit("clock boundary anchor missing")
+          # first occurrence is inside obrienSavedGameLoadedBoundary in v0.2.36
+          s=s.replace(old,f"obrienBashirLastStrengthPotionTurn = {clock};",1)
+          p.write_text(s)
+          print("candidate clock",clock)
+          PY
+      - name: Build
+        run: make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
+      - name: Replay to first mismatch
+        shell: bash
+        run: |
+          set +e
+          OBRIEN_USER_SAVE_PROBE=1 ./bin/brogue --variant obrien -o user.broguesave > replay.log 2>&1
+          rc=$?
+          set -e
+          echo "CLOCK=${{ matrix.clock }} RC=$rc"
+          grep -E 'Expected RNG|USER_SAVE_OOS|USER_SAVE_RESUMED|USER_SAVE_CONTINUED' replay.log | tail -20 || true
