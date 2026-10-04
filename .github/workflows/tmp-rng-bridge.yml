@@ -48,26 +48,47 @@ jobs:
           old='''    oldRNG = rogue.RNG;
               rogue.RNG = RNG_SUBSTANTIVE;
 
+          //#ifdef AUDIT_RNG
+          //reportRNGState();
+          //#endif
+
               randomNumber = (unsigned long) rand_range(0, 255);'''
           if old not in s:
               old='''    oldRNG = rogue.RNG;
               rogue.RNG = RNG_SUBSTANTIVE;
+
               randomNumber = (unsigned long) rand_range(0, 255);'''
           if old not in s:
+              old='''    oldRNG = rogue.RNG;
+              rogue.RNG = RNG_SUBSTANTIVE;
+
+          //#ifdef AUDIT_RNG
+          //reportRNGState();
+          //#endif
+
+              randomNumber = (unsigned long) rand_range(0, 255);'''
+          # Normalize indentation-sensitive anchor by operating on the exact
+          # stable two-line tail of RNGCheck instead.
+          tail='''    rogue.RNG = RNG_SUBSTANTIVE;
+
+          //#ifdef AUDIT_RNG
+          //reportRNGState();
+          //#endif
+
+              randomNumber = (unsigned long) rand_range(0, 255);'''
+          tail = tail.replace("              randomNumber", "    randomNumber")
+          if tail not in s:
               raise SystemExit("RNGCheck anchor not found")
-          if "randomNumber" in old.splitlines()[-1]:
-              prefix=old.rsplit("    randomNumber",1)[0]
-              target=old
-              new=prefix + f'''    if (rogue.playbackMode && gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
+          new=tail.replace(
+              "    randomNumber = (unsigned long) rand_range(0, 255);",
+              f'''    if (rogue.playbackMode && gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
                   && rogue.playerTurnNumber == 2054) {{
                   for (short obrienBridgeBurn = 0; obrienBridgeBurn < {burn}; obrienBridgeBurn++) {{
                       (void) rand_range(0, 255);
                   }}
               }}
-              randomNumber = (unsigned long) rand_range(0, 255);'''
-          else:
-              raise SystemExit("unexpected RNGCheck anchor")
-          p.write_text(s.replace(target,new,1))
+              randomNumber = (unsigned long) rand_range(0, 255);''')
+          p.write_text(s.replace(tail,new,1))
           print("burn", burn)
           PY
 
