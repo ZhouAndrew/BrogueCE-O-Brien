@@ -154,7 +154,7 @@ jobs:
         run: |
           set +e
           cp user.broguesave structural-test.broguesave
-          OBRIEN_USER_SAVE_PROBE=1 ./bin/brogue --variant obrien -o structural-test.broguesave > replay.log 2>&1
+          OBRIEN_USER_SAVE_PROBE=1 timeout 25s ./bin/brogue --variant obrien -o structural-test.broguesave > replay.log 2>&1
           rc=$?
           set -e
           echo "RC=$rc"
