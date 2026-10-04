@@ -1,4 +1,5 @@
 name: "Temporary 3714 self-consistent migration"
+# rerun for overflow counters
 # rerun after updater shim
 # rerun after idempotent updater
 # rerun after v0.2.36 init anchor fix
