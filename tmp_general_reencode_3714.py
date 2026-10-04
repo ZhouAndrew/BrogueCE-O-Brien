@@ -4,6 +4,12 @@ from pathlib import Path
 p = Path("src/brogue/Recordings.c")
 s = p.read_text(encoding="utf-8")
 
+# The historical stream can expand substantially when old no-op/custom inputs
+# are materialized under current v0.2.36 semantics. Keep a generous bounded
+# buffer for this one-shot recovery; strict replay remains the acceptance test.
+s = s.replace("#define OBRIEN_MIGRATION_MAX_BYTES (1024 * 1024)",
+              "#define OBRIEN_MIGRATION_MAX_BYTES (32 * 1024 * 1024)", 1)
+
 def repl(old, new, label):
     global s
     if old not in s:
