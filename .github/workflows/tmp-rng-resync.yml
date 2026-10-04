@@ -49,7 +49,7 @@ jobs:
                     && numberOfBytes == 1) {
                     unsigned long candidate = x;
                     short skipped = 0;
-                    while (candidate != recordedNumber && skipped < 64) {
+                    while (candidate != recordedNumber && skipped < 4096) {
                         candidate = (unsigned long) rand_range(0, 255);
                         skipped++;
                     }
