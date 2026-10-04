@@ -61,6 +61,20 @@ repl(
             } else {
                 obrienMigrationUnmatchedGeneratedChecks++;
             }
+
+            // A diverged current-engine automatic action can continue for many
+            // turns without asking recallEvent() for another source input.
+            // The source save's declared target turn is authoritative for the
+            // recovered continuation, so finalize exactly at that boundary.
+            if (rogue.playerTurnNumber == rogue.howManyTurns) {
+                obrienMigrationFinalize();
+                exit(0);
+            }
+            if (rogue.playerTurnNumber > rogue.howManyTurns) {
+                fprintf(stderr, "MIGRATION overshot target turn: %li > %li\\n",
+                        rogue.playerTurnNumber, rogue.howManyTurns);
+                exit(98);
+            }
             return;''',
 "pair generated checks")
 
