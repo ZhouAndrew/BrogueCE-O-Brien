@@ -40,7 +40,6 @@ jobs:
           python3 tmp_hso_boundary_fix.py
           echo "--- initRecording around patchVersion ---"
           grep -n -A35 -B10 'rogue.patchVersion          = 0' src/brogue/Recordings.c || true
-          python3 tmp_make_forensic_v36.py
           python3 forensic_reencode_legacy_save.py
           python3 forensic_reencode_event_source_fix.py
           python3 tmp_general_reencode_3714.py
