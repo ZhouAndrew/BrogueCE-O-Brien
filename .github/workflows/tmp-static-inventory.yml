@@ -1,0 +1,23 @@
+name: "Temporary OBrien static-state inventory"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-static-inventory.yml'
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Apply v0.2.35 and inventory process-local OBrien state
+        run: |
+          set -euo pipefail
+          python3 apply_obrien_mod_v0_2_35.py
+          echo "=== static OBrien state ==="
+          grep -RInE '^[[:space:]]*static .*obrien[A-Za-z0-9_]+' src/brogue src/platform || true
+          echo "=== all SAVED_GAME_LOADED handling ==="
+          grep -RIn -A18 -B8 'case SAVED_GAME_LOADED' src/brogue/Recordings.c
