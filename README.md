@@ -1,7 +1,7 @@
-O'Brien Must Survive — v0.2.35
+O'Brien Must Survive — v0.2.37
 =================================
 
-This fork's current O'Brien gameplay release is **v0.2.35**.
+This fork's current O'Brien gameplay release is **v0.2.37**.
 
 Key O'Brien rules in this release:
 
@@ -9,12 +9,13 @@ Key O'Brien rules in this release:
 - current periodic Starfleet resupply cadence remains every 3 depths (3, 6, 9, 12, ...);
 - the former caustic/poison tactical allocation is replaced by **2 Potions of Incineration**;
 - each periodic cache carries **2 Incineration + 2 Paralysis + 2 Confusion** for the tactical potion allocation;
-- historical O'Brien rulesets and old save/recording replay behavior remain compatibility-gated.
+- historical O'Brien rulesets and old save/recording replay behavior remain compatibility-gated;
+- v0.2.37 adds an opt-in, strict replay fix for the verified 3714-turn ruleset-35 save lineage; RNG checkpoints remain enforced and are not relocked.
 
 Apply the current updater with:
 
 ```bash
-python3 apply_obrien_mod_v0_2_35.py
+python3 apply_obrien_mod_v0_2_37.py
 make -B -j"$(nproc)" bin/brogue
 ```
 
