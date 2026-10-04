@@ -9,7 +9,7 @@ ordinary Brogue recording stream alone.
 Compatibility policy:
 - OBRIEN_COMPAT_LEGACY_STRENGTH_PHASE (header byte 13, bit 0x02) is opt-in;
 - only tagged O'Brien recordings restore the historical fabrication-clock
-  phase (40) at SAVED_GAME_LOADED;
+  phase (40) at SAVED_GAME_LOADED while strict playback is active;
 - ordinary ruleset-35 recordings keep the v0.2.36 save-boundary behavior;
 - RNG_CHECK remains strict: no checkpoint is skipped, rewritten or relocked;
 - new missions use ruleset generation 37; gameplay is otherwise v0.2.36.
@@ -100,6 +100,7 @@ replace_once(
 
 boolean obrienLegacyStrengthClockPhase(void) {
     return gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
+        && rogue.playbackMode
         && (obrienCompatibilityFlags & OBRIEN_COMPAT_LEGACY_STRENGTH_PHASE) != 0;
 }
 """,
