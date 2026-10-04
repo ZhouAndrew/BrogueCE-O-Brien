@@ -1,0 +1,107 @@
+name: "O'Brien v0.2.37 3714-turn replay compatibility"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/obrien-v0.2.37-legacy-clock'
+    paths:
+      - 'apply_obrien_mod_v0_2_36.py'
+      - 'apply_obrien_mod_v0_2_37.py'
+      - 'tools/repair_3714_ruleset35_v037.py'
+      - 'tests/ci_3714_resume_probe.py'
+      - 'tests/fixtures/obrien_3714_diag_b64.part*'
+      - '.github/workflows/obrien-v037-3714-replay.yml'
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  strict-replay:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Reconstruct diagnostic copy of the 3714-turn recording
+        run: |
+          set -euo pipefail
+          cat tests/fixtures/obrien_3714_diag_b64.part00 \
+              tests/fixtures/obrien_3714_diag_b64.part01 \
+              tests/fixtures/obrien_3714_diag_b64.part02 \
+              tests/fixtures/obrien_3714_diag_b64.part03 \
+              tests/fixtures/obrien_3714_diag_b64.part04 \
+              tests/fixtures/obrien_3714_diag_b64.part05 \
+              tests/fixtures/obrien_3714_diag_b64.part06 | base64 -d > diagnostic.broguesave
+          test "$(stat -c %s diagnostic.broguesave)" = "20541"
+          echo "6f646658e910f07fa52f83d5edda354f039b64bf303abbe8176b1f9dd5edb021  diagnostic.broguesave" | sha256sum -c -
+
+      - name: Repair only historical checkpoints and add v0.2.37 compatibility tag
+        run: |
+          set -euo pipefail
+          python3 tools/repair_3714_ruleset35_v037.py diagnostic.broguesave repaired.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          b=Path("repaired.broguesave").read_bytes()
+          assert len(b)==20541
+          assert int.from_bytes(b[24:28],"big")==3714
+          assert b[13]==3
+          assert b[14]==35
+          assert b[11104]==183
+          assert b[11109]==56
+          print("header",b[13],b[14],"turns",int.from_bytes(b[24:28],"big"))
+          PY
+
+      - name: Apply v0.2.37 twice (idempotence)
+        run: |
+          set -euo pipefail
+          python3 apply_obrien_mod_v0_2_37.py
+          python3 apply_obrien_mod_v0_2_37.py
+          python3 tests/ci_3714_resume_probe.py
+
+      - name: Build headless v0.2.37
+        run: |
+          set -euo pipefail
+          make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
+          ./bin/brogue --version | tee version.txt
+          grep -q "O'Brien Must Survive v0.2.37" version.txt
+
+      - name: Prove untagged historical stream still fails strictly
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp repaired.broguesave untagged.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("untagged.broguesave"); b=bytearray(p.read_bytes())
+          b[13] &= ~0x02
+          p.write_bytes(b)
+          PY
+          set +e
+          OBRIEN_USER_SAVE_PROBE=1 ./bin/brogue --variant obrien -o untagged.broguesave > untagged.log 2>&1
+          rc=$?
+          set -e
+          test "$rc" = 92
+          grep -q 'USER_SAVE_OOS turn=2054' untagged.log
+          grep -q 'Expected RNG output of 183; got 105.' untagged.log
+
+      - name: Strict replay all 3714 turns and continue one live turn
+        run: |
+          set -euo pipefail
+          cp repaired.broguesave strict.broguesave
+          OBRIEN_USER_SAVE_PROBE=1 ./bin/brogue --variant obrien -o strict.broguesave > strict.log 2>&1
+          cat strict.log
+          grep -q 'USER_SAVE_RESUMED turn=3714 target=3714' strict.log
+          grep -q 'USER_SAVE_CONTINUED turn=3715 expected=3715' strict.log
+          grep -q 'playback=0 recording=1 oos=0' strict.log
+          ! grep -q 'Expected RNG output' strict.log
+          ! grep -q 'Playback panic' strict.log
+          ! grep -q 'USER_SAVE_OOS' strict.log
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obrien-v037-repaired-3714-save
+          path: |
+            repaired.broguesave
+            strict.log
+            untagged.log
+            version.txt
+          if-no-files-found: error
