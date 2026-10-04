@@ -187,9 +187,13 @@ repl(old, new, 'cancelKeystroke migration')
 
 # Activate only on explicit environment request.
 old = '''    rogue.patchVersion          = 0;
+    // v0.2.34: reset replay/live mapping boundary for each recording session.
+    obrienAutoMapContinuation = false;
 
     if (rogue.playbackMode) {'''
 new = '''    rogue.patchVersion          = 0;
+    // v0.2.34: reset replay/live mapping boundary for each recording session.
+    obrienAutoMapContinuation = false;
 
     if (rogue.playbackMode) {
         const char *migrationPath = getenv("OBRIEN_MIGRATE_OUTPUT");
