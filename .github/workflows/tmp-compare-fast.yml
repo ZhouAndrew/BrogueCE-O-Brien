@@ -1,0 +1,58 @@
+name: "Temporary fast 3714 vs 3727 compare"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-compare-fast.yml'
+
+jobs:
+  compare:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Reconstruct and compare
+        run: |
+          set -euo pipefail
+          cat tmp_user_save_b64.part00 tmp_user_save_b64.part01 tmp_user_save_b64.part02 \
+              tmp_user_save_b64.part03 tmp_user_save_b64.part04 tmp_user_save_b64.part05 \
+              tmp_user_save_b64.part06 | base64 -d > user3714.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          u=bytearray(Path("user3714.broguesave").read_bytes())
+          if (u[11104],u[11109])==(105,71):
+              u[11104],u[11109]=183,56
+          r=Path("demo/OBrien_3727turn_recovered.broguesave").read_bytes()
+          us=bytes(u[36:]); rs=r[36:]
+          p=0
+          while p<min(len(us),len(rs)) and us[p]==rs[p]: p+=1
+          print("prefix",p,"abs",36+p)
+          print("u_next",us[p:p+80].hex())
+          print("r_next",rs[p:p+80].hex())
+          # best local shift around first difference
+          best=[]
+          for d in range(-300,301):
+              uj=p
+              rj=p+d
+              if rj<0: continue
+              n=min(2000,len(us)-uj,len(rs)-rj)
+              if n<=0: continue
+              score=sum(a==b for a,b in zip(us[uj:uj+n],rs[rj:rj+n]))
+              best.append((score/n,d,score,n))
+          for row in sorted(best,reverse=True)[:20]:
+              print("SHIFT",row)
+          # exact 64-byte anchors from user every 512 bytes; locate uniquely in recovered.
+          for pos in range(0,len(us),512):
+              chunk=us[pos:pos+64]
+              if len(chunk)<64: break
+              hits=[]
+              start=0
+              while True:
+                  k=rs.find(chunk,start)
+                  if k<0: break
+                  hits.append(k); start=k+1
+                  if len(hits)>4: break
+              if len(hits)==1:
+                  print("ANCHOR",pos,"->",hits[0],"delta",hits[0]-pos)
+          PY
