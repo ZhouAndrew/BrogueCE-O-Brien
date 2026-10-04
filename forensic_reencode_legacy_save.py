@@ -40,7 +40,7 @@ static unsigned long obrienMigrationInsertedRests = 0;
 
 static void obrienMigrationRecordChar(unsigned char c) {
     if (obrienMigrationLength >= OBRIEN_MIGRATION_MAX_BYTES) {
-        fprintf(stderr, "MIGRATION output buffer exceeded %u bytes\n", OBRIEN_MIGRATION_MAX_BYTES);
+        fprintf(stderr, "MIGRATION output buffer exceeded %u bytes turn=%li sourceLoc=%li sourceLen=%lu pendingRests=%lu legacyRuns=%lu insertedRests=%lu\n", OBRIEN_MIGRATION_MAX_BYTES, rogue.playerTurnNumber, recordingLocation, lengthOfPlaybackFile, obrienMigrationPendingRests, obrienMigrationLegacyRuns, obrienMigrationInsertedRests);
         exit(93);
     }
     obrienMigrationStream[obrienMigrationLength++] = c;
