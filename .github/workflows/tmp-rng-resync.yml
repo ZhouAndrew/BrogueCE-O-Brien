@@ -40,38 +40,33 @@ jobs:
           from pathlib import Path
           p=Path("src/brogue/Recordings.c")
           s=p.read_text()
-          old='''            } else if (recordedNumber != x) {
-                      printf("Expected RNG output of %li; got %i.\\n", recordedNumber, (int) x);
-                      playbackPanic();
-                  }'''
-          old=old.replace("                      ", "                ")
-          if old not in s:
-              raise SystemExit("OOS mismatch anchor not found")
+          start=s.index("            } else if (recordedNumber != x) {")
+          end=s.index("            }\n        }\n    } else {", start) + len("            }")
+          old=s[start:end]
           new='''            } else if (recordedNumber != x) {
-                      if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
-                          && obrienStrictReplayRuleset35()
-                          && numberOfBytes == 1) {
-                          unsigned long candidate = x;
-                          short skipped = 0;
-                          while (candidate != recordedNumber && skipped < 64) {
-                              candidate = (unsigned long) rand_range(0, 255);
-                              skipped++;
-                          }
-                          if (candidate == recordedNumber) {
-                              printf("OBRIEN_R35_RNG_RESYNC turn=%li skipped=%i from=%lu to=%lu\\n",
-                                     rogue.playerTurnNumber, skipped, x, recordedNumber);
-                              fflush(stdout);
-                              return;
-                          }
-                          printf("OBRIEN_R35_RNG_RESYNC_FAIL turn=%li scanned=%i expected=%lu initial=%lu last=%lu\\n",
-                                 rogue.playerTurnNumber, skipped, recordedNumber, x, candidate);
-                          fflush(stdout);
-                      }
-                      printf("Expected RNG output of %li; got %i.\\n", recordedNumber, (int) x);
-                      playbackPanic();
-                  }'''
-          new=new.replace("                      ", "                ")
-          p.write_text(s.replace(old,new,1))
+                if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
+                    && obrienStrictReplayRuleset35()
+                    && numberOfBytes == 1) {
+                    unsigned long candidate = x;
+                    short skipped = 0;
+                    while (candidate != recordedNumber && skipped < 64) {
+                        candidate = (unsigned long) rand_range(0, 255);
+                        skipped++;
+                    }
+                    if (candidate == recordedNumber) {
+                        printf("OBRIEN_R35_RNG_RESYNC turn=%li skipped=%i from=%lu to=%lu\\n",
+                               rogue.playerTurnNumber, skipped, x, recordedNumber);
+                        fflush(stdout);
+                        return;
+                    }
+                    printf("OBRIEN_R35_RNG_RESYNC_FAIL turn=%li scanned=%i expected=%lu initial=%lu last=%lu\\n",
+                           rogue.playerTurnNumber, skipped, recordedNumber, x, candidate);
+                    fflush(stdout);
+                }
+                printf("Expected RNG output of %li; got %i.\\n", recordedNumber, (int) x);
+                playbackPanic();
+            }'''
+          p.write_text(s[:start] + new + s[end:])
           PY
 
       - name: Build
