@@ -1,0 +1,89 @@
+name: "Temporary 2054 boundary matrix"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-2054-matrix.yml'
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        boundary: [baseline, fullzero, narrowabs]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Reconstruct original user save
+        run: |
+          cat tmp_user_save_b64.part00 tmp_user_save_b64.part01 tmp_user_save_b64.part02 \
+              tmp_user_save_b64.part03 tmp_user_save_b64.part04 tmp_user_save_b64.part05 \
+              tmp_user_save_b64.part06 | base64 -d > user.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("user.broguesave")
+          b=bytearray(p.read_bytes())
+          b[11104]=183
+          b[11109]=56
+          p.write_bytes(b)
+          print("size",len(b),"bytes",b[11104],b[11109])
+          PY
+      - name: Apply v0.2.36 + probe
+        run: |
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 tmp_user_save_probe.py
+          python3 tmp_rng2054_diag.py
+      - name: Apply boundary candidate
+        env:
+          BOUNDARY: ${{ matrix.boundary }}
+        run: |
+          if [ "$BOUNDARY" = fullzero ]; then
+            python3 tmp_hso_boundary_fix.py
+          elif [ "$BOUNDARY" = narrowabs ]; then
+            python3 - <<'PY'
+          from pathlib import Path
+          p=Path("src/brogue/Monsters.c")
+          s=p.read_text()
+          old='''void obrienSavedGameLoadedBoundary(void) {
+              if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
+                  && obrienRulesetAtLeast(35)) {
+                  obrienBashirLastStrengthPotionTurn = rogue.absoluteTurnNumber;
+              }
+          }'''
+          new='''void obrienSavedGameLoadedBoundary(void) {
+              if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
+                  && obrienRulesetAtLeast(35)) {
+                  obrienBashirLastStrengthPotionTurn = rogue.absoluteTurnNumber;
+                  obrienSecurityRuntimeMonst = NULL;
+                  obrienSecurityLightningCharges = OBRIEN_SECURITY_MAX_CHARGES;
+                  obrienSecurityPoisonCharges = OBRIEN_SECURITY_MAX_CHARGES;
+                  obrienSecurityLastRechargeTurn = rogue.absoluteTurnNumber;
+                  obrienSecuritySuspended = false;
+                  obrienSecurityStoredIntegrity = 0;
+                  obrienSecurityStoredLightningCharges = OBRIEN_SECURITY_MAX_CHARGES;
+                  obrienSecurityStoredPoisonCharges = OBRIEN_SECURITY_MAX_CHARGES;
+              }
+          }'''
+          if old not in s: raise SystemExit("anchor missing")
+          p.write_text(s.replace(old,new,1))
+          PY
+          fi
+      - name: Show HSO runtime code
+        run: |
+          grep -n -A80 -B25 'static void obrienBindSecurityRuntime' src/brogue/Monsters.c | head -140
+          grep -n -A180 -B30 'casts lightning' src/brogue/Monsters.c | head -260 || true
+      - name: Build
+        run: make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
+      - name: Replay to first mismatch
+        shell: bash
+        run: |
+          set +e
+          OBRIEN_RNG_DIAG=1 OBRIEN_USER_SAVE_PROBE=1 \
+            ./bin/brogue --variant obrien -o user.broguesave > probe.log 2>&1
+          rc=$?
+          set -e
+          echo "BOUNDARY=${{ matrix.boundary }} RC=$rc"
+          grep -E 'OBRIEN_BOUNDARY|RNG_AFTER_2053|RNG_PEEK offset=75|RNG_CALL player=2054|Expected RNG output|USER_SAVE_OOS' probe.log | tail -30
