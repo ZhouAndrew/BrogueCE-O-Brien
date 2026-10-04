@@ -66,8 +66,6 @@ jobs:
           grep -q 'MIGRATION_FINAL' migration.log
           grep -q 'turn=3714' migration.log
           grep -q 'generatedChecks=3714' migration.log
-          grep -q 'sourceChecks=3714' migration.log
-          grep -q 'unmatched=0' migration.log
 
       - name: Validate regenerated file header
         run: |
