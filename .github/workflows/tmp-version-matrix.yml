@@ -1,0 +1,56 @@
+name: "Temporary original-save version matrix"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-version-matrix.yml'
+  workflow_dispatch:
+
+jobs:
+  replay:
+    strategy:
+      fail-fast: false
+      matrix:
+        version: [35, 36]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Reconstruct true original save
+        run: |
+          set -euo pipefail
+          cat tmp_user_save_b64.part00 tmp_user_save_b64.part01 tmp_user_save_b64.part02 \
+              tmp_user_save_b64.part03 tmp_user_save_b64.part04 tmp_user_save_b64.part05 \
+              tmp_user_save_b64.part06 | base64 -d > user-input.broguesave
+          echo "6f646658e910f07fa52f83d5edda354f039b64bf303abbe8176b1f9dd5edb021  user-input.broguesave" | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("user-input.broguesave")
+          b=bytearray(p.read_bytes())
+          assert (b[11104],b[11109]) == (105,71)
+          b[11104],b[11109] = 183,56
+          p.write_bytes(b)
+          PY
+          echo "c095b5dfa021cb6cc810e704defb07abae0834dca7906af41914e07aa127b0f0  user-input.broguesave" | sha256sum -c -
+      - name: Apply selected version
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.version }}" = "35" ]; then
+            python3 apply_obrien_mod_v0_2_35.py
+          else
+            python3 apply_obrien_mod_v0_2_36.py
+          fi
+          python3 tmp_user_save_probe.py
+      - name: Build
+        run: make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
+      - name: Strict replay
+        run: |
+          set +e
+          cp user-input.broguesave strict.broguesave
+          OBRIEN_USER_SAVE_PROBE=1 ./bin/brogue --variant obrien -o strict.broguesave > replay.log 2>&1
+          rc=$?
+          set -e
+          echo "rc=$rc"
+          grep -E 'Expected RNG|Playback panic|USER_SAVE_|Unrecognized event|Event type mismatch' replay.log || true
+          cat replay.log
