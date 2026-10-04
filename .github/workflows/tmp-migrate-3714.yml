@@ -1,4 +1,4 @@
-name: "Temporary 3714 self-consistent migration"
+name: "Temporary 3714 self-consistent migration"\n# rerun after v0.2.36 init anchor fix
 
 on:
   push:
