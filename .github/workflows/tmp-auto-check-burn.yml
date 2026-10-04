@@ -1,0 +1,132 @@
+name: "Temporary auto-solve RNG-check burns"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-auto-check-burn.yml'
+  workflow_dispatch:
+
+jobs:
+  solve:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - name: Reconstruct true original save
+        run: |
+          cat tmp_user_save_b64.part00 tmp_user_save_b64.part01 tmp_user_save_b64.part02 \
+              tmp_user_save_b64.part03 tmp_user_save_b64.part04 tmp_user_save_b64.part05 \
+              tmp_user_save_b64.part06 | base64 -d > user.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("user.broguesave"); b=bytearray(p.read_bytes())
+          assert (b[11104],b[11109])==(105,71)
+          b[11104],b[11109]=183,56
+          p.write_bytes(b)
+          PY
+      - name: Build environment-driven RNG-check burn probe
+        run: |
+          set -euo pipefail
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 tmp_hso_boundary_fix.py
+          python3 tmp_user_save_probe.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("src/brogue/Recordings.c"); s=p.read_text()
+          old='''    randomNumber = (unsigned long) rand_range(0, 255);
+              OOSCheck(randomNumber, 1);'''.replace("              OOSCheck","    OOSCheck")
+          if old not in s: raise SystemExit("RNGCheck anchor missing")
+          new=r'''    if (rogue.playbackMode && gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {
+              char obrienBurnName[64];
+              const char *obrienBurnValue;
+              short obrienCompatBurn = 0;
+              snprintf(obrienBurnName, sizeof(obrienBurnName),
+                       "OBRIEN_CHECK_BURN_%li", rogue.playerTurnNumber);
+              obrienBurnValue = getenv(obrienBurnName);
+              if (obrienBurnValue && obrienBurnValue[0]) {
+                  obrienCompatBurn = (short) atoi(obrienBurnValue);
+              }
+              for (short i = 0; i < obrienCompatBurn; i++) {
+                  (void) rand_range(0, 255);
+              }
+          }
+          randomNumber = (unsigned long) rand_range(0, 255);
+          OOSCheck(randomNumber, 1);'''
+          p.write_text(s.replace(old,new,1))
+          PY
+          make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue >/dev/null
+
+      - name: Solve forward
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,re,subprocess,pathlib,shutil,json,sys
+          exe="./bin/brogue"; src=pathlib.Path("user.broguesave")
+          burns={2054:2,2055:3}
+          max_candidate=255
+          max_steps=100
+          oos=re.compile(r"USER_SAVE_OOS turn=(\d+)")
+          resumed=re.compile(r"USER_SAVE_RESUMED turn=(\d+) target=(\d+)")
+          continued=re.compile(r"USER_SAVE_CONTINUED turn=(\d+) expected=(\d+)")
+
+          def run(table,tag):
+              f=pathlib.Path(f"checksolve-{tag}.broguesave"); shutil.copyfile(src,f)
+              env=os.environ.copy(); env["OBRIEN_USER_SAVE_PROBE"]="1"
+              for t,n in table.items(): env[f"OBRIEN_CHECK_BURN_{t}"]=str(n)
+              cp=subprocess.run([exe,"--variant","obrien","-o",str(f)],env=env,text=True,
+                                stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=30)
+              out=cp.stdout; f.unlink(missing_ok=True)
+              m=continued.search(out)
+              if m: return 10**9,cp.returncode,out
+              m=resumed.search(out)
+              if m: return int(m.group(1)),cp.returncode,out
+              m=oos.search(out)
+              if m: return int(m.group(1)),cp.returncode,out
+              return -1,cp.returncode,out
+
+          for step in range(max_steps):
+              turn,rc,out=run(burns,f"base-{step}")
+              print("CHECKSOLVE state",step,"turn",turn,"rc",rc,"last",list(sorted(burns.items()))[-8:])
+              if turn>=10**9:
+                  print("CHECKSOLVE SUCCESS",json.dumps(burns,sort_keys=True))
+                  pathlib.Path("check-burns.json").write_text(json.dumps(burns,indent=2,sort_keys=True))
+                  pathlib.Path("check-solver-final.log").write_text(out)
+                  sys.exit(0)
+              if turn<0:
+                  print(out[-5000:]); raise SystemExit(4)
+              target=turn
+              matches=[]
+              for c in range(max_candidate+1):
+                  trial=dict(burns); trial[target]=c
+                  nt,nrc,nout=run(trial,f"t{target}-c{c}")
+                  if nt>target:
+                      matches.append((nt,c,nrc,nout))
+                      print("CHECKSOLVE candidate",target,c,"next",nt)
+                      # Prefer the candidate with the longest immediately verified horizon.
+                      if nt>=target+2:
+                          break
+              if not matches:
+                  print("CHECKSOLVE FAIL target",target)
+                  pathlib.Path("check-burns.partial.json").write_text(json.dumps(burns,indent=2,sort_keys=True))
+                  raise SystemExit(2)
+              matches.sort(reverse=True,key=lambda x:(x[0],-x[1]))
+              nt,c,nrc,nout=matches[0]
+              burns[target]=c
+              print("CHECKSOLVE ACCEPT",target,c,"next",nt)
+              pathlib.Path("check-burns.partial.json").write_text(json.dumps(burns,indent=2,sort_keys=True))
+
+          print("CHECKSOLVE step limit",json.dumps(burns,sort_keys=True))
+          raise SystemExit(3)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: check-burn-solver
+          path: |
+            check-burns.json
+            check-burns.partial.json
+            check-solver-final.log
+          if-no-files-found: warn
