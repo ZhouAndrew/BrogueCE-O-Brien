@@ -1,0 +1,111 @@
+name: "Temporary 3714 self-consistent migration"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-migrate-3714.yml'
+
+jobs:
+  migrate:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Reconstruct original user save
+        run: |
+          set -euo pipefail
+          cat tmp_user_save_b64.part00 tmp_user_save_b64.part01 tmp_user_save_b64.part02 \
+              tmp_user_save_b64.part03 tmp_user_save_b64.part04 tmp_user_save_b64.part05 \
+              tmp_user_save_b64.part06 | base64 -d > user-original.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("user-original.broguesave"); b=bytearray(p.read_bytes())
+          b[11104]=183
+          b[11109]=56
+          p.write_bytes(b)
+          print("source_size",len(b),"turns",int.from_bytes(b[24:28],"big"),"ruleset",b[14],"compat",b[13])
+          PY
+
+      - name: Apply v0.2.36 and migration instrumentation
+        run: |
+          set -euo pipefail
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 tmp_hso_boundary_fix.py
+          python3 forensic_reencode_legacy_save.py
+          python3 forensic_reencode_event_source_fix.py
+          python3 tmp_general_reencode_3714.py
+          python3 forensic_migration_nullconsole.py
+          python3 tmp_user_save_probe.py
+
+      - name: Build headless migration binary
+        run: |
+          set -euo pipefail
+          make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
+          ./bin/brogue --version | tee version.txt
+          grep -q "O'Brien Must Survive v0.2.36" version.txt
+
+      - name: Migrate source stream
+        shell: bash
+        run: |
+          set +e
+          OBRIEN_MIGRATE_OUTPUT="$PWD/repaired-3714-v036.broguesave" \
+            ./bin/brogue --variant obrien -o user-original.broguesave > migration.log 2>&1
+          rc=$?
+          set -e
+          echo "migration_rc=$rc"
+          tail -80 migration.log
+          test "$rc" = 0
+          test -s repaired-3714-v036.broguesave
+          grep -q 'MIGRATION_FINAL' migration.log
+          grep -q 'turn=3714' migration.log
+          grep -q 'generatedChecks=3714' migration.log
+          grep -q 'sourceChecks=3714' migration.log
+          grep -q 'unmatched=0' migration.log
+
+      - name: Validate regenerated file header
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("repaired-3714-v036.broguesave"); b=p.read_bytes()
+          print("size",len(b),"turns",int.from_bytes(b[24:28],"big"),
+                "deepest",int.from_bytes(b[28:32],"big"),"ruleset",b[14],"compat",b[13],
+                "declared",int.from_bytes(b[32:36],"big"))
+          assert int.from_bytes(b[24:28],"big")==3714
+          assert int.from_bytes(b[32:36],"big")==len(b)
+          assert b[14]==35
+          assert b[13]&1
+          PY
+          sha256sum user-original.broguesave repaired-3714-v036.broguesave | tee checksums.txt
+
+      - name: Strict replay and continue one live turn
+        shell: bash
+        run: |
+          set +e
+          cp repaired-3714-v036.broguesave strict-test.broguesave
+          OBRIEN_USER_SAVE_PROBE=1 ./bin/brogue --variant obrien -o strict-test.broguesave > strict.log 2>&1
+          rc=$?
+          set -e
+          echo "strict_rc=$rc"
+          tail -100 strict.log
+          test "$rc" = 0
+          grep -q 'USER_SAVE_RESUMED turn=3714 target=3714' strict.log
+          grep -q 'USER_SAVE_CONTINUED turn=3715 expected=3715' strict.log
+          grep -q 'playback=0 recording=1 oos=0' strict.log
+          ! grep -q 'Expected RNG output' strict.log
+          ! grep -q 'Playback panic' strict.log
+          ! grep -q 'USER_SAVE_OOS' strict.log
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: repaired-3714-v036-migration
+          path: |
+            repaired-3714-v036.broguesave
+            migration.log
+            strict.log
+            checksums.txt
+            version.txt
+          if-no-files-found: warn
