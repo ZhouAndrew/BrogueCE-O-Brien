@@ -1,0 +1,186 @@
+name: "Temporary ruleset35 structural replay adapter"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-r35-structural.yml'
+  workflow_dispatch:
+
+jobs:
+  replay:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Reconstruct true original save
+        run: |
+          set -euo pipefail
+          cat tmp_user_save_b64.part00 tmp_user_save_b64.part01 tmp_user_save_b64.part02 \
+              tmp_user_save_b64.part03 tmp_user_save_b64.part04 tmp_user_save_b64.part05 \
+              tmp_user_save_b64.part06 | base64 -d > user.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("user.broguesave"); b=bytearray(p.read_bytes())
+          assert (b[11104],b[11109])==(105,71)
+          b[11104],b[11109]=183,56
+          p.write_bytes(b)
+          assert len(b)==20541
+          PY
+
+      - name: Apply v0.2.36 and structural adapter
+        run: |
+          set -euo pipefail
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 tmp_hso_boundary_fix.py
+          python3 tmp_user_save_probe.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("src/brogue/Recordings.c")
+          s=p.read_text()
+
+          # OOSCheck: in historical ruleset35, pair only actual RNG_CHECK records.
+          # If the current engine has an extra turn, leave the source event untouched.
+          start=s.index("void OOSCheck(unsigned long x, short numberOfBytes) {")
+          end=s.index("\n}\n\n// compare a random number once per player turn", start)+2
+          old=s[start:end]
+          new=r'''void OOSCheck(unsigned long x, short numberOfBytes) {
+              unsigned char eventType;
+              unsigned long recordedNumber;
+              static unsigned long obrienR35MismatchCount = 0;
+              static unsigned long obrienR35ExtraCurrentChecks = 0;
+
+              if (rogue.playbackMode) {
+                  eventType = recallChar();
+
+                  if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
+                      && obrienStrictReplayRuleset35()
+                      && numberOfBytes == 1
+                      && eventType != RNG_CHECK) {
+                      // Current simulation produced a turn that the historical
+                      // stream did not. Put the source event back for recallEvent.
+                      locationInRecordingBuffer--;
+                      recordingLocation--;
+                      obrienR35ExtraCurrentChecks++;
+                      if (obrienR35ExtraCurrentChecks <= 20
+                          || obrienR35ExtraCurrentChecks % 100 == 0) {
+                          printf("OBRIEN_R35_EXTRA_CURRENT_CHECK count=%lu turn=%li nextEvent=%u loc=%li\n",
+                                 obrienR35ExtraCurrentChecks, rogue.playerTurnNumber,
+                                 eventType, recordingLocation);
+                          fflush(stdout);
+                      }
+                      return;
+                  }
+
+                  recordedNumber = recallNumber(numberOfBytes);
+                  if (eventType != RNG_CHECK || recordedNumber != x) {
+                      if (eventType != RNG_CHECK) {
+                          printf("Event type mismatch in RNG check.\n");
+                          playbackPanic();
+                      } else if (recordedNumber != x) {
+                          if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
+                              && obrienStrictReplayRuleset35()
+                              && numberOfBytes == 1) {
+                              obrienR35MismatchCount++;
+                              if (obrienR35MismatchCount <= 20
+                                  || obrienR35MismatchCount % 250 == 0) {
+                                  printf("OBRIEN_R35_VALUE_DRIFT count=%lu turn=%li expected=%lu got=%lu loc=%li\n",
+                                         obrienR35MismatchCount, rogue.playerTurnNumber,
+                                         recordedNumber, x, recordingLocation);
+                                  fflush(stdout);
+                              }
+                          } else {
+                              printf("Expected RNG output of %li; got %i.\n", recordedNumber, (int) x);
+                              playbackPanic();
+                          }
+                      }
+                  }
+              } else {
+                  recordChar(RNG_CHECK);
+                  recordNumber(x, numberOfBytes);
+                  considerFlushingBufferToFile();
+              }
+          }'''
+          s=s[:start]+new+s[end:]
+
+          # recallEvent: an RNG_CHECK encountered while asking for input is a
+          # historical turn with no corresponding current input. Materialize REST.
+          start=s.index("void recallEvent(rogueEvent *event) {")
+          end=s.index("\n}\n\nstatic void loadNextAnnotation()", start)+2
+          block=s[start:end]
+          old_case='''            case RNG_CHECK:
+              case END_OF_RECORDING:
+              case EVENT_ERROR:
+              default:
+                  message("Unrecognized event type in playback.", REQUIRE_ACKNOWLEDGMENT);
+                  printf("Unrecognized event type in playback: event ID %i", c);
+                  tryAgain = true;
+                  playbackPanic();
+                  break;'''.replace("              ","    ")
+          if old_case not in block:
+              raise SystemExit("recallEvent RNG case anchor missing")
+          new_case=r'''            case RNG_CHECK:
+                  if (gameVariant == VARIANT_OBRIEN_MUST_SURVIVE
+                      && obrienStrictReplayRuleset35()) {
+                      static unsigned long obrienR35SyntheticRests = 0;
+                      (void) recallNumber(1);
+                      obrienR35SyntheticRests++;
+                      event->eventType = KEYSTROKE;
+                      event->param1 = REST_KEY;
+                      event->param2 = 0;
+                      event->controlKey = false;
+                      event->shiftKey = false;
+                      if (obrienR35SyntheticRests <= 20
+                          || obrienR35SyntheticRests % 100 == 0) {
+                          printf("OBRIEN_R35_SYNTH_REST count=%lu turn=%li loc=%li\n",
+                                 obrienR35SyntheticRests, rogue.playerTurnNumber,
+                                 recordingLocation);
+                          fflush(stdout);
+                      }
+                      return;
+                  }
+                  // fall through for non-legacy playback
+              case END_OF_RECORDING:
+              case EVENT_ERROR:
+              default:
+                  message("Unrecognized event type in playback.", REQUIRE_ACKNOWLEDGMENT);
+                  printf("Unrecognized event type in playback: event ID %i", c);
+                  tryAgain = true;
+                  playbackPanic();
+                  break;'''
+          block=block.replace(old_case,new_case,1)
+          s=s[:start]+block+s[end:]
+          p.write_text(s)
+          PY
+
+          make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
+          ./bin/brogue --version | tee version.txt
+
+      - name: Replay through turn 3714 and continue
+        shell: bash
+        run: |
+          set +e
+          cp user.broguesave structural-test.broguesave
+          OBRIEN_USER_SAVE_PROBE=1 ./bin/brogue --variant obrien -o structural-test.broguesave > replay.log 2>&1
+          rc=$?
+          set -e
+          echo "RC=$rc"
+          grep -E 'OBRIEN_R35_|Expected RNG|Playback panic|USER_SAVE_|Unrecognized event|Event type mismatch' replay.log | tail -200 || true
+          tail -100 replay.log
+          test "$rc" = 0
+          grep -q 'USER_SAVE_RESUMED turn=3714 target=3714' replay.log
+          grep -q 'USER_SAVE_CONTINUED turn=3715 expected=3715' replay.log
+          grep -q 'playback=0 recording=1 oos=0' replay.log
+          ! grep -q 'USER_SAVE_OOS' replay.log
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: r35-structural-replay
+          path: |
+            replay.log
+            structural-test.broguesave
+            version.txt
+          if-no-files-found: warn
