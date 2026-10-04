@@ -1,0 +1,56 @@
+name: "Temporary exact f2cdb30 replay"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-exact-f2cdb30.yml'
+
+jobs:
+  replay:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: diag
+      - uses: actions/checkout@v5
+        with:
+          ref: f2cdb30244a8a137c4c89a6f6682600bc55c2ec9
+          path: historical
+      - name: Reconstruct true original save
+        run: |
+          set -euo pipefail
+          cd diag
+          cat tmp_user_save_b64.part00 tmp_user_save_b64.part01 tmp_user_save_b64.part02 \
+              tmp_user_save_b64.part03 tmp_user_save_b64.part04 tmp_user_save_b64.part05 \
+              tmp_user_save_b64.part06 | base64 -d > ../historical/user3714.broguesave
+          cd ../historical
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("user3714.broguesave"); b=bytearray(p.read_bytes())
+          assert (b[11104],b[11109])==(105,71)
+          b[11104],b[11109]=183,56
+          p.write_bytes(b)
+          import hashlib
+          print("sha",hashlib.sha256(b).hexdigest(),"size",len(b),
+                "turns",int.from_bytes(b[24:28],"big"),
+                "ruleset",b[14],"compat",b[13],"variant",hex(b[15]))
+          PY
+      - name: Build exact historical executable
+        working-directory: historical
+        run: |
+          set -euo pipefail
+          make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue
+          ./bin/brogue --version | tee version.txt
+      - name: Replay exact historical engine
+        working-directory: historical
+        shell: bash
+        run: |
+          set +e
+          timeout 45s ./bin/brogue --variant obrien -o user3714.broguesave > replay.log 2>&1
+          rc=$?
+          set -e
+          echo "RC=$rc"
+          grep -E 'Expected RNG|Playback panic|Unrecognized event|out of sync|Brogue version|Supports variant' replay.log | tail -50 || true
+          tail -80 replay.log
