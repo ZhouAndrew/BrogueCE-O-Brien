@@ -1,0 +1,93 @@
+name: "Temporary backtrack turn-2060 preturn burns"
+
+on:
+  push:
+    branches:
+      - 'chatgpt/replay-3714-relock'
+    paths:
+      - '.github/workflows/tmp-backtrack-2060.yml'
+  workflow_dispatch:
+
+jobs:
+  search:
+    strategy:
+      fail-fast: false
+      matrix:
+        burn2059: [2, 12, 55, 116, 122]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Prepare save and probe binary
+        run: |
+          cat tmp_user_save_b64.part00 tmp_user_save_b64.part01 tmp_user_save_b64.part02 \
+              tmp_user_save_b64.part03 tmp_user_save_b64.part04 tmp_user_save_b64.part05 \
+              tmp_user_save_b64.part06 | base64 -d > user.broguesave
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("user.broguesave"); b=bytearray(p.read_bytes())
+          b[11104],b[11109]=183,56
+          p.write_bytes(b)
+          PY
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 apply_obrien_mod_v0_2_36.py
+          python3 tmp_hso_boundary_fix.py
+          python3 tmp_user_save_probe.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("src/brogue/Time.c"); s=p.read_text()
+          old='''    brogueAssert(rogue.RNG == RNG_SUBSTANTIVE);
+
+              handleXPXP();'''.replace("              handleXPXP","    handleXPXP")
+          if old not in s: raise SystemExit("anchor missing")
+          new=r'''    brogueAssert(rogue.RNG == RNG_SUBSTANTIVE);
+
+              if (rogue.playbackMode && gameVariant == VARIANT_OBRIEN_MUST_SURVIVE) {
+                  char name[64];
+                  const char *value;
+                  short n=0;
+                  snprintf(name,sizeof(name),"OBRIEN_BURN_%li",rogue.playerTurnNumber+1);
+                  value=getenv(name);
+                  if (value && value[0]) n=(short)atoi(value);
+                  for(short i=0;i<n;i++) (void)rand_range(0,255);
+              }
+
+              handleXPXP();'''.replace("              if","    if").replace("                  ","        ").replace("              handleXPXP","    handleXPXP")
+          p.write_text(s.replace(old,new,1))
+          PY
+          make -B -j3 GRAPHICS=NO DEBUG=YES bin/brogue >/dev/null
+
+      - name: Search all turn-2060 burns
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,re,subprocess,pathlib,shutil,sys,json
+          prev=int("${{ matrix.burn2059 }}")
+          fixed={2054:2,2055:3,2056:2,2057:3,2058:1,2059:prev}
+          src=pathlib.Path("user.broguesave")
+          rx=re.compile(r"USER_SAVE_OOS turn=(\d+)")
+          matches=[]
+          for c in range(256):
+              f=pathlib.Path(f"trial-{c}.broguesave"); shutil.copyfile(src,f)
+              env=os.environ.copy(); env["OBRIEN_USER_SAVE_PROBE"]="1"
+              for t,n in fixed.items(): env[f"OBRIEN_BURN_{t}"]=str(n)
+              env["OBRIEN_BURN_2060"]=str(c)
+              cp=subprocess.run(["./bin/brogue","--variant","obrien","-o",str(f)],
+                                env=env,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=20)
+              f.unlink(missing_ok=True)
+              m=rx.search(cp.stdout)
+              turn=int(m.group(1)) if m else (10**9 if "USER_SAVE_RESUMED" in cp.stdout else -1)
+              if turn>2060:
+                  matches.append((c,turn))
+                  print("BACKTRACK_MATCH prev",prev,"burn2060",c,"next",turn)
+          pathlib.Path(f"matches-{prev}.json").write_text(json.dumps(matches))
+          print("BACKTRACK_RESULT prev",prev,"matches",matches)
+          if not matches: raise SystemExit(2)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backtrack-2060-${{ matrix.burn2059 }}
+          path: matches-*.json
+          if-no-files-found: warn
