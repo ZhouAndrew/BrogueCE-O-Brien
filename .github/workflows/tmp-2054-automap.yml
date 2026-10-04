@@ -43,23 +43,32 @@ jobs:
               raise SystemExit(0)
           p=Path("src/brogue/Recordings.c")
           s=p.read_text()
-          import re
-          pat=r'(?m)^(?P<i>[ \\t]*)obrienAutoMapContinuation = true;\\n(?P=i)obrienAutoApplyMagicMappingScroll\\(false\\);'
-          m=re.search(pat,s)
-          if not m:
-              raise SystemExit("automap boundary anchor missing")
-          i=m.group("i")
+          start=s.find("case SAVED_GAME_LOADED:")
+          if start < 0:
+              raise SystemExit("saved-game case missing")
+          end=s.find("break;", start)
+          if end < 0:
+              raise SystemExit("saved-game case end missing")
+          block=s[start:end]
+          call="obrienAutoApplyMagicMappingScroll(false);"
+          cont="obrienAutoMapContinuation = true;"
+          if call not in block or cont not in block:
+              print(block)
+              raise SystemExit("automap statements missing in saved-game case")
           if mode=="noapply":
-              body=f'{i}obrienAutoMapContinuation = true;\\n{i}/* diagnostic: skip boundary map apply */'
+              block=block.replace(call,"/* diagnostic: skip boundary map apply */",1)
           elif mode=="nocont":
-              body=f'{i}obrienAutoMapContinuation = false;\\n{i}obrienAutoApplyMagicMappingScroll(false);'
+              block=block.replace(cont,"obrienAutoMapContinuation = false;",1)
           elif mode=="nomap":
-              body=f'{i}obrienAutoMapContinuation = false;\\n{i}/* diagnostic: skip boundary map apply */'
+              block=block.replace(cont,"obrienAutoMapContinuation = false;",1)
+              block=block.replace(call,"/* diagnostic: skip boundary map apply */",1)
           elif mode=="resetcont":
-              body=f'{i}obrienAutoMapContinuation = false;\\n{i}obrienAutoApplyMagicMappingScroll(false);\\n{i}obrienAutoMapContinuation = true;'
+              block=block.replace(cont,"obrienAutoMapContinuation = false;",1)
+              block=block.replace(call,call+"\\n                    obrienAutoMapContinuation = true;",1)
           else:
               raise SystemExit(mode)
-          p.write_text(re.sub(pat,body,s,count=1))
+          s=s[:start]+block+s[end:]
+          p.write_text(s)
           print("mode",mode)
           PY
       - name: Build
