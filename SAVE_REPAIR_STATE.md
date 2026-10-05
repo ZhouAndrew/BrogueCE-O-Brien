@@ -43,3 +43,32 @@ This means the verified 3714/depth-13 checkpoint is only a safe recovery anchor,
 Also note that the longer supplied `LastGame (3).broguesave` has `deepestLevel=23` in its recording header, so the available save artifacts themselves prove progress beyond depth 13 even before considering the user's level-25/Dragon report.
 
 Future salvage work should therefore aim to recover a later synchronized state and should not treat depth 13 or turn 3714 as the intended final endpoint.
+
+
+## Verified depth-23 recovery (2026-10-05)
+
+A later synchronized checkpoint has now been recovered and engine-tested:
+
+- turn: 5811
+- depth: 23
+- deepest level: 23
+- HP on resume: 57/70
+- file size: 32783 bytes
+- SHA-256: `868c68de9a6d695fb57838360f42cce41d657d64534a540b8b003c26e9fc93fa`
+
+Recovery route from the previously verified turn-5803/depth-22 state:
+
+1. use the ready +2 health charm to recover from 28/70 to 53/70;
+2. use the +10 blinking staff once, selecting a legal ray whose impact point minimizes distance to the down stairs;
+3. continue normal travel to the stairs;
+4. arrive at depth 23 at turn 5811 with 57/70 HP.
+
+Crucially, the resulting save was then loaded again by the O'Brien engine and passed a real replay/resume test:
+
+`USER_SAVE_RESUMED turn=5811 target=5811 depth=23 deepest=23 hp=57/70 playback=0 recording=1 oos=0`
+
+followed by:
+
+`USER_SAVE_CONTINUED turn=5812 expected=5812 depth=23 hp=57/70 playback=0 recording=1 oos=0`
+
+with process exit code 0. Therefore this checkpoint is an engine-verified recovery, not a header-only reconstruction.
