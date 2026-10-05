@@ -29,3 +29,17 @@ Engine verification must require successful resume at turn 3714, successful cont
 ## Future workflow
 
 Preserve originals; compare event streams; identify reload/divergence boundaries; generate a minimal candidate; structurally validate it; then run the exact matching engine. Do not call a repair successful until engine replay passes.
+
+
+## Additional progression evidence
+
+User-reported progression for seed 438245716:
+
+- the run had already reached level/depth 25;
+- a Dragon had been encountered.
+
+This means the verified 3714/depth-13 checkpoint is only a safe recovery anchor, not the best-known historical progress of the run.
+
+Also note that the longer supplied `LastGame (3).broguesave` has `deepestLevel=23` in its recording header, so the available save artifacts themselves prove progress beyond depth 13 even before considering the user's level-25/Dragon report.
+
+Future salvage work should therefore aim to recover a later synchronized state and should not treat depth 13 or turn 3714 as the intended final endpoint.
