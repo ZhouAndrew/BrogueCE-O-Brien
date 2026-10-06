@@ -45,30 +45,19 @@ Also note that the longer supplied `LastGame (3).broguesave` has `deepestLevel=2
 Future salvage work should therefore aim to recover a later synchronized state and should not treat depth 13 or turn 3714 as the intended final endpoint.
 
 
-## Verified depth-23 recovery (2026-10-05)
+## Withdrawn depth-23 candidate (2026-10-05)
 
-A later synchronized checkpoint has now been recovered and engine-tested:
+The former claim that `RECOVER_D23_T5811_VERIFIED.broguesave` was a verified depth-23 recovery is **withdrawn**.
 
-- turn: 5811
-- depth: 23
-- deepest level: 23
-- HP on resume: 57/70
-- file size: 32783 bytes
-- SHA-256: `868c68de9a6d695fb57838360f42cce41d657d64534a540b8b003c26e9fc93fa`
+The user's actual Desktop GUI executable (`CE 1.15.1-dev.67a1970.master`, O'Brien v0.2.37) replayed that file and displayed `OUT OF SYNC` at turn 3715/5811 while still on depth 13. Therefore the earlier probe/headless acceptance was not an authoritative engine verification.
 
-Recovery route from the previously verified turn-5803/depth-22 state:
+Authoritative validation rule from now on:
 
-1. use the ready +2 health charm to recover from 28/70 to 53/70;
-2. use the +10 blinking staff once, selecting a legal ray whose impact point minimizes distance to the down stairs;
-3. continue normal travel to the stairs;
-4. arrive at depth 23 at turn 5811 with 57/70 HP.
+- use the actual executable from `Desktop.zip` (or demonstrably bit-identical game logic);
+- replay the candidate from the beginning;
+- require no RNG/playback OOS;
+- require the target depth/state to be reached;
+- reload the produced candidate and execute at least one live turn.
 
-Crucially, the resulting save was then loaded again by the O'Brien engine and passed a real replay/resume test:
+The turn-5811/depth-23 candidate must not be used as a recovery checkpoint.
 
-`USER_SAVE_RESUMED turn=5811 target=5811 depth=23 deepest=23 hp=57/70 playback=0 recording=1 oos=0`
-
-followed by:
-
-`USER_SAVE_CONTINUED turn=5812 expected=5812 depth=23 hp=57/70 playback=0 recording=1 oos=0`
-
-with process exit code 0. Therefore this checkpoint is an engine-verified recovery, not a header-only reconstruction.
