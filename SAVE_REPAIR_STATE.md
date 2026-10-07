@@ -96,3 +96,54 @@ This proves that the 3715 defect is not the only compatibility defect, but it al
 A naïve strategy that ignores historical RNG checks and simply replays the post-3714 user inputs as fresh live input is **not** acceptable: it diverges behaviorally, reaches only depth 15, and dies at turn 4114. Therefore future work should keep strict replay and reconstruct missing historical process state rather than regenerate a new trajectory.
 
 Current next blocker: explain and reproduce the state transition that first becomes observable at turn 4746 / depth 16, likely around O'Brien process-local ally/runtime state rather than the already-fixed Bashir Strength clock.
+
+
+## 2026-10-07 continuation: turn-4746 blocker localized
+
+Further strict-replay work narrowed the next blocker substantially.
+
+### Control result
+
+With the boundary-specific Strength-clock fix, the shorter `LastGame.broguesave` branch replays cleanly all the way to its end:
+
+- turn 4077
+- depth 14
+- deepest 14
+- HP 50/50
+- no RNG OOS
+
+This is important: the second historical load boundary repair is not globally corrupting replay. The longer branch has an additional later compatibility defect.
+
+### Exact v0.2.35 is not the answer
+
+A clean Brogue source tree rebuilt by applying the O'Brien updater chain only through v0.2.35 does **not** replay the long save. It diverges at approximately:
+
+- turn 2012
+- depth 7
+- expected RNG 28, got 60
+
+Therefore the long recording is not simply "a v0.2.35 recording that should be opened with a v0.2.35 binary". Later compatibility behavior is genuinely required.
+
+### Removing the second SAVED_GAME_LOADED is insufficient
+
+Deleting only the second historical `SAVED_GAME_LOADED` byte makes unmodified v0.2.37 pass the old 3715 failure, but it then diverges around turn 4060. This is consistent with the Bashir Strength clock no longer being rebased at the second load: the old fabrication phase eventually becomes observable again. So the load event cannot simply be deleted.
+
+### Turn 4746 details
+
+The longer branch remains strictly synchronized through turn 4745. The first later mismatch occurs at the RNG checkpoint written after the recorded `h` movement at turn 4746:
+
+- player action: `h`
+- depth: 16
+- absolute turn: 4725
+- expected RNG checkpoint: 123
+- current replay: 33
+
+Instrumentation showed 558 substantive RNG calls in this turn. The tail is dominated by `paintLight()`, especially luminescent-fungus terrain lights and a few wall torches.
+
+A diagnostic that suppresses the final group of terrain-light RNG calls can make the **4746 checkpoint itself** equal the historical 123, but the very next checkpoint (4747) still diverges. Therefore "skip some lighting RNG" is only an audit alignment trick, not a valid repair.
+
+The extra glowing terrain was already present before the turn-4746 input, so it was not newly spawned on that turn. The current working hypothesis is that some latent game-state difference becomes behaviorally observable on turn 4746 and changes the lighting/environment/monster update path. The root cause has not yet been proven.
+
+### Current repair rule
+
+Do not patch the RNG byte at 4746 and do not suppress lighting merely to make one checkpoint green. Any accepted fix must carry synchronization into following turns and eventually into a loadable depth-23 save.
