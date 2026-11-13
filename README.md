@@ -1,6 +1,12 @@
 O'Brien Must Survive — v0.2.37
 =================================
 
+What’s in this repository
+-------------------------
+- [Brogue CE game source](src/) and [build instructions](BUILD.md) — the underlying game.
+- [O’Brien Must Survive](OBRIEN_MOD.md) — the gameplay variant. See [the version marker](OBRIEN_VERSION) and the updater listed below.
+- [Save and replay maintenance](SAVE_REPAIR_STATE.md) — recovery notes and [save inspection tooling](brogue_save_tool.py).
+
 This fork's current O'Brien gameplay release is **v0.2.37**.
 
 Key O'Brien rules in this release:
